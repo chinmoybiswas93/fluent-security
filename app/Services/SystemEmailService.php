@@ -296,7 +296,7 @@ class SystemEmailService
             <p>This password reset link will expire in 24 hours for security reasons.</p>
             <p>If you're having trouble with the button above, copy and paste the URL below into your web browser:</p>
             <blockquote>
-                <p>{{##user.password_reset_url##}}</p>
+                <p>{{user.password_reset_url}}</p>
             </blockquote>
             <hr/>
             <p>If you did not initiate this request, please review your account security and consider changing your
