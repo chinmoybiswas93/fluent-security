@@ -65,17 +65,9 @@ class GoogleOneTapAuthHandler
     public function handleGoogleOneTapLogin()
     {
         if (is_user_logged_in()) {
-            $redirectUrl = admin_url();
-            if ($_POST['mode'] !== 'inline') {
-                $providedUrl = isset($_POST['current_url']) ? $_POST['current_url'] : '';
-                if (filter_var($providedUrl, FILTER_VALIDATE_URL)) {
-                    $redirectUrl = esc_url_raw($providedUrl);
-                }
-            }
-
             wp_send_json([
                 'message'      => __('You are already logged in.', 'fluent-security'),
-                'redirect_url' => $redirectUrl
+                'redirect_url' => $this->getRequestedRedirect()
             ]);
         }
 
@@ -90,15 +82,35 @@ class GoogleOneTapAuthHandler
         }
 
         if (isset($_POST['mode']) && $_POST['mode'] !== 'inline') {
-            $providedUrl = isset($_POST['current_url']) ? $_POST['current_url'] : '';
-            if (filter_var($providedUrl, FILTER_VALIDATE_URL)) {
-                $redirectUrl = esc_url_raw($providedUrl);
-            }
+            $redirectUrl = $this->getRequestedRedirect($redirectUrl);
         }
 
         wp_send_json([
             'redirect_url' => $redirectUrl
         ]);
+    }
+
+    /**
+     * The browser assigns this straight to window.location, so it never passes through
+     * wp_safe_redirect. Being a well formed URL is not enough - it has to be ours, or
+     * the endpoint is an open redirect anyone can point at a lookalike site.
+     *
+     * @param $fallback string
+     * @return string
+     */
+    private function getRequestedRedirect($fallback = '')
+    {
+        if (!$fallback) {
+            $fallback = admin_url();
+        }
+
+        $providedUrl = isset($_POST['current_url']) ? sanitize_url(wp_unslash($_POST['current_url'])) : '';
+
+        if (!$providedUrl || !filter_var($providedUrl, FILTER_VALIDATE_URL)) {
+            return $fallback;
+        }
+
+        return Helper::getValidatedRedirectUrl($providedUrl, $fallback);
     }
 
     private function handleGoogleTokenConfirm($crednetial)
@@ -149,12 +161,14 @@ class GoogleOneTapAuthHandler
 
         $intentRedirectTo = '';
         if (isset($_COOKIE['fs_intent_redirect'])) {
-            $cookieRedirect = $_COOKIE['fs_intent_redirect'];
+            $cookieRedirect = sanitize_url(urldecode(wp_unslash($_COOKIE['fs_intent_redirect'])));
+
             if (!filter_var($cookieRedirect, FILTER_VALIDATE_URL)) {
                 $cookieRedirect = admin_url();
-                $intentRedirectTo = '';
             }
-            $redirect_to = $cookieRedirect;
+
+            // Same reasoning as getRequestedRedirect(): must be a URL on this site.
+            $redirect_to = Helper::getValidatedRedirectUrl($cookieRedirect, admin_url());
         } else {
             if (is_multisite() && !get_active_blog_for_user($user->ID) && !is_super_admin($user->ID)) {
                 $redirect_to = user_admin_url();
