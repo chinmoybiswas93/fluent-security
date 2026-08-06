@@ -434,55 +434,70 @@ class LoginSecurityHandlerTest extends BaseTestCase
         $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
     }
 
-    private function setLoginSecurity($value)
-    {
-        $settings = Helper::getAuthSettings();
-        $settings['enable_auth_logs'] = $value;
-        update_option('__fls_auth_settings', $settings);
-        Helper::resetStatics();
-    }
-
-    // ------------------------------------------------ enable_auth_logs master switch
+    // ------------------------------------------------------- login security always on
 
     /**
-     * The stored value is the string 'no', which is truthy - so the old boolean test
-     * never fired and the switch did nothing at all.
+     * There is deliberately no setting for this. Every protection here reads the rows
+     * the log writes, so an off switch would just be a way to silently disable the
+     * plugin - and the old `enable_auth_logs` one did nothing anyway, because it
+     * compared the string 'no' as a boolean.
      */
-    public function testTurningLoginSecurityOffStopsFailuresBeingLogged()
+    public function testLoginSecurityIsOnAndCannotBeSwitchedOffFromSettings()
     {
-        $this->setLoginSecurity('no');
+        $settings = Helper::getAuthSettings();
 
-        $this->handler->logFailedAuth('admin', new \WP_Error('incorrect_password', 'nope'));
+        $this->assertArrayNotHasKey('enable_auth_logs', $settings);
+        $this->assertTrue(Helper::isLoginSecurityEnabled());
 
-        $this->assertSame(0, $this->countRows('failed'));
+        // Even an option left over from an older version must not turn it off.
+        $settings['enable_auth_logs'] = 'no';
+        update_option('__fls_auth_settings', $settings);
+        Helper::resetStatics();
+
+        $this->assertTrue(Helper::isLoginSecurityEnabled());
     }
 
-    public function testTurningLoginSecurityOffAlsoStopsEnforcement()
+    public function testAStaleDisabledOptionStillLogsAndEnforces()
     {
-        $this->setLoginSecurity('no');
+        $settings = Helper::getAuthSettings();
+        $settings['enable_auth_logs'] = 'no';
+        update_option('__fls_auth_settings', $settings);
+        Helper::resetStatics();
 
-        $this->seedFailedAttempts(50);
+        $this->handler->logFailedAuth('admin', new \WP_Error('incorrect_password', 'nope'));
+        $this->assertSame(1, $this->countRows('failed'));
+
+        $this->seedFailedAttempts(5);
 
         $_SERVER['PHP_AUTH_USER'] = 'admin';
         $_SERVER['PHP_AUTH_PW'] = 'wrong password';
 
-        $this->assertTrue($this->handler->maybeBlockAppPasswordAuth(true));
-        $this->assertSame(0, $this->countRows('blocked'));
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
     }
 
-    public function testTurningLoginSecurityOffAlsoStopsTheAccountChallenge()
+    public function testCodeCanStillOptOutThroughTheFilter()
     {
-        $this->setLoginSecurity('no');
+        add_filter('fluent_auth/login_security_enabled', '__return_false');
 
-        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
-        $this->seedAccountFailures($user->ID, 50);
+        try {
+            $this->assertFalse(Helper::isLoginSecurityEnabled());
 
-        $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
-    }
+            $this->handler->logFailedAuth('admin', new \WP_Error('incorrect_password', 'nope'));
+            $this->assertSame(0, $this->countRows('failed'));
 
-    public function testLoginSecurityIsOnByDefault()
-    {
-        $this->assertTrue(Helper::isLoginSecurityEnabled());
+            $this->seedFailedAttempts(50);
+
+            $_SERVER['PHP_AUTH_USER'] = 'admin';
+            $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+            $this->assertTrue((new LoginSecurityHandler())->maybeBlockAppPasswordAuth(true));
+
+            $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+            $this->seedAccountFailures($user->ID, 50);
+            $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
+        } finally {
+            remove_filter('fluent_auth/login_security_enabled', '__return_false');
+        }
     }
 
     // --------------------------------------------------------------- attempt boundary

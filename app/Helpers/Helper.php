@@ -56,7 +56,6 @@ class Helper
         $defaults = [
             'disable_xmlrpc'          => 'no',
             'disable_app_login'       => 'no',
-            'enable_auth_logs'        => 'yes',
             'login_try_limit'         => 5,
             'login_try_timing'        => 30,
             'disable_users_rest'      => 'no',
@@ -168,18 +167,21 @@ class Helper
     }
 
     /**
-     * The `enable_auth_logs` switch is presented in the UI as "Enable Login Security and
-     * Login Limit", and it genuinely gates both: enforcement reads the very rows that
-     * logging writes, so the two cannot be turned on independently.
+     * The auth log is not an optional extra, it is what every protection here runs on:
+     * the attempt limit counts failed rows, the account challenge counts them per user,
+     * and the trusted IP exemption reads successful ones. Switching it off does not
+     * trade logging for something else, it turns the plugin off.
      *
-     * Compared against 'yes' explicitly - the stored value is the string 'no' when off,
-     * which is truthy, so a plain boolean test never fired.
+     * So there is no setting for it. A site with a genuine reason - another WAF already
+     * doing this, a staging clone - can still opt out in code:
+     *
+     *     add_filter('fluent_auth/login_security_enabled', '__return_false');
      *
      * @return bool
      */
     public static function isLoginSecurityEnabled()
     {
-        return self::getSetting('enable_auth_logs') === 'yes';
+        return (bool)apply_filters('fluent_auth/login_security_enabled', true);
     }
 
     public static function getSetting($key, $default = false)

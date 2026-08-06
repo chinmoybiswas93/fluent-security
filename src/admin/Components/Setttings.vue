@@ -36,32 +36,26 @@
 
                     <div class="fls_login_settings">
                         <h3>{{ $t('Login Security Settings') }}</h3>
-                        <el-form-item class="fls_switch">
-                            <el-switch v-model="settings.enable_auth_logs" active-value="yes" inactive-value="no"/>
-                            {{ $t('Enable Login Security and Login Limit (recommended)') }}
-                        </el-form-item>
-                        <p v-if="settings.enable_auth_logs !== 'yes'" style="color: red;">
-                            {{ $t('We recommend to enable login logs as well as set login try limit') }}
+                        <p>
+                            {{ $t('Login activity is always recorded. The attempt limit, the audit log and the login notifications all read from it, so it is not something that can be switched off here.') }}
                         </p>
 
-                        <template v-else>
-                            <el-row :gutter="30">
-                                <el-col :md="12" :sm="24">
-                                    <el-form-item :label="$t('Login Try Limit per IP address in certain defined minutes')">
-                                        <el-input type="number" v-model="settings.login_try_limit"/>
-                                        <p>{{ $t('How many times user can try login in') }} {{ settings.login_try_timing }} {{ $t('minutes') }}</p>
-                                    </el-form-item>
-                                </el-col>
-                                <el-col :md="12" :sm="24">
-                                    <el-form-item :label="$t('Time limit for login try in minutes')">
-                                        <el-input type="number" v-model="settings.login_try_timing"/>
-                                        <p>
-                                            {{$t('__login_try_limit_desc__', settings.login_try_limit, settings.login_try_timing, settings.login_try_timing)}}
-                                        </p>
-                                    </el-form-item>
-                                </el-col>
-                            </el-row>
-                        </template>
+                        <el-row :gutter="30">
+                            <el-col :md="12" :sm="24">
+                                <el-form-item :label="$t('Login Try Limit per IP address in certain defined minutes')">
+                                    <el-input type="number" v-model="settings.login_try_limit"/>
+                                    <p>{{ $t('How many times user can try login in') }} {{ settings.login_try_timing }} {{ $t('minutes') }}</p>
+                                </el-form-item>
+                            </el-col>
+                            <el-col :md="12" :sm="24">
+                                <el-form-item :label="$t('Time limit for login try in minutes')">
+                                    <el-input type="number" v-model="settings.login_try_timing"/>
+                                    <p>
+                                        {{$t('__login_try_limit_desc__', settings.login_try_limit, settings.login_try_timing, settings.login_try_timing)}}
+                                    </p>
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
                     </div>
 
                     <div class="fls_login_settings">
@@ -340,7 +334,6 @@ export default {
             this.settings = {
                 disable_xmlrpc: 'yes',
                 disable_app_login: 'no',
-                enable_auth_logs: 'yes',
                 login_try_limit: 5,
                 login_try_timing: 30,
                 disable_users_rest: 'yes',

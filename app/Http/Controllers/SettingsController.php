@@ -63,17 +63,18 @@ class SettingsController
 
         $errors = [];
 
-        if ($settings['enable_auth_logs'] == 'yes') {
-            if (!$settings['login_try_limit']) {
-                $errors['login_try_limit'] = [
-                    'required' => 'Login try limit is required'
-                ];
-            }
-            if (!$settings['login_try_timing']) {
-                $errors['login_try_timing'] = [
-                    'required' => 'Login Timing is required'
-                ];
-            }
+        // Always required now: the attempt limit is no longer something that can be
+        // switched off from the settings screen.
+        if (empty($settings['login_try_limit'])) {
+            $errors['login_try_limit'] = [
+                'required' => 'Login try limit is required'
+            ];
+        }
+
+        if (empty($settings['login_try_timing'])) {
+            $errors['login_try_timing'] = [
+                'required' => 'Login Timing is required'
+            ];
         }
 
         if ($settings['email2fa'] == 'yes' && empty($settings['email2fa_roles'])) {
