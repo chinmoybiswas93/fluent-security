@@ -36,32 +36,58 @@
 
                     <div class="fls_login_settings">
                         <h3>{{ $t('Login Security Settings') }}</h3>
-                        <el-form-item class="fls_switch">
-                            <el-switch v-model="settings.enable_auth_logs" active-value="yes" inactive-value="no"/>
-                            {{ $t('Enable Login Security and Login Limit (recommended)') }}
-                        </el-form-item>
-                        <p v-if="settings.enable_auth_logs !== 'yes'" style="color: red;">
-                            {{ $t('We recommend to enable login logs as well as set login try limit') }}
+                        <p>
+                            {{ $t('Login activity is always recorded. The attempt limit, the audit log and the login notifications all read from it, so it is not something that can be switched off here.') }}
                         </p>
 
-                        <template v-else>
-                            <el-row :gutter="30">
-                                <el-col :md="12" :sm="24">
-                                    <el-form-item :label="$t('Login Try Limit per IP address in certain defined minutes')">
-                                        <el-input type="number" v-model="settings.login_try_limit"/>
-                                        <p>{{ $t('How many times user can try login in') }} {{ settings.login_try_timing }} {{ $t('minutes') }}</p>
-                                    </el-form-item>
-                                </el-col>
-                                <el-col :md="12" :sm="24">
-                                    <el-form-item :label="$t('Time limit for login try in minutes')">
-                                        <el-input type="number" v-model="settings.login_try_timing"/>
-                                        <p>
-                                            {{$t('__login_try_limit_desc__', settings.login_try_limit, settings.login_try_timing, settings.login_try_timing)}}
-                                        </p>
-                                    </el-form-item>
-                                </el-col>
-                            </el-row>
-                        </template>
+                        <el-row :gutter="30">
+                            <el-col :md="12" :sm="24">
+                                <el-form-item :label="$t('Login Try Limit per IP address in certain defined minutes')">
+                                    <el-input type="number" v-model="settings.login_try_limit"/>
+                                    <p>{{ $t('How many times user can try login in') }} {{ settings.login_try_timing }} {{ $t('minutes') }}</p>
+                                </el-form-item>
+                            </el-col>
+                            <el-col :md="12" :sm="24">
+                                <el-form-item :label="$t('Time limit for login try in minutes')">
+                                    <el-input type="number" v-model="settings.login_try_timing"/>
+                                    <p>
+                                        {{$t('__login_try_limit_desc__', settings.login_try_limit, settings.login_try_timing, settings.login_try_timing)}}
+                                    </p>
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
+                    </div>
+
+                    <div class="fls_login_settings">
+                        <h3>{{ $t('Visitor IP Detection') }}</h3>
+                        <p>
+                            {{ $t('Cloudflare is detected and handled automatically. Only configure this if your site sits behind another reverse proxy (for example nginx in front of Apache, Varnish or a load balancer), otherwise every visitor may look like the same IP address.') }}
+                        </p>
+
+                        <el-alert v-if="proxy_config_locked" type="info" :closable="false" show-icon
+                                  style="margin-bottom: 15px;">
+                            {{ $t('These values are defined in wp-config.php and take precedence over the fields below.') }}
+                        </el-alert>
+
+                        <el-row :gutter="30">
+                            <el-col :md="12" :sm="24">
+                                <el-form-item :label="$t('Trusted proxy IP addresses or ranges')">
+                                    <el-input type="textarea" :rows="3" v-model="settings.trusted_proxies"
+                                              placeholder="127.0.0.1, 10.0.0.0/8"/>
+                                    <p>
+                                        {{ $t('One per line or comma separated. CIDR ranges and IPv6 are supported. Leave empty to always use the direct connection address, which cannot be spoofed.') }}
+                                    </p>
+                                </el-form-item>
+                            </el-col>
+                            <el-col :md="12" :sm="24">
+                                <el-form-item :label="$t('Header the proxy sends the visitor IP in')">
+                                    <el-input v-model="settings.proxy_ip_header" placeholder="X-Forwarded-For"/>
+                                    <p>
+                                        {{ $t('Defaults to X-Forwarded-For. This header is only read for requests arriving from one of the trusted proxies above.') }}
+                                    </p>
+                                </el-form-item>
+                            </el-col>
+                        </el-row>
                     </div>
 
                     <div class="fls_login_settings">
@@ -262,7 +288,8 @@ export default {
                 sat: this.$t('Every Saturday'),
                 monthly: this.$t('Every Month (1st day of every month)')
             },
-            app_ready: false
+            app_ready: false,
+            proxy_config_locked: false
         }
     },
     methods: {
@@ -274,6 +301,7 @@ export default {
                     this.settings = response.settings;
                     this.user_roles = response.user_roles;
                     this.low_level_roles = response.low_level_roles;
+                    this.proxy_config_locked = response.proxy_config_locked;
                     this.app_ready = true;
                 })
                 .catch((errors) => {
@@ -306,7 +334,6 @@ export default {
             this.settings = {
                 disable_xmlrpc: 'yes',
                 disable_app_login: 'no',
-                enable_auth_logs: 'yes',
                 login_try_limit: 5,
                 login_try_timing: 30,
                 disable_users_rest: 'yes',
@@ -321,7 +348,10 @@ export default {
                 email2fa: 'yes',
                 email2fa_roles: ['administrator', 'editor', 'author'],
                 disable_admin_bar: 'yes',
-                disable_bar_roles: ['subscriber']
+                disable_bar_roles: ['subscriber'],
+                // Server topology, not a preference - never overwrite it with a default.
+                trusted_proxies: this.settings.trusted_proxies || '',
+                proxy_ip_header: this.settings.proxy_ip_header || ''
             }
             this.$notify.success(this.$t('Recommended settings have been applied. Please review and save the settings.'));
         }

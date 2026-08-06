@@ -93,7 +93,7 @@ class SocialAuthHandler
         if (isset($data['code'])) {
             $redirectUrl = $this->handleGithubConfirm($data);
             if ($redirectUrl && !is_wp_error($redirectUrl)) {
-                wp_redirect($redirectUrl);
+                wp_safe_redirect($redirectUrl);
                 exit();
             }
 
@@ -114,7 +114,7 @@ class SocialAuthHandler
         if (!empty($data['code'])) {
             $redirectUrl = $this->handleGoogleConfirm($data);
             if ($redirectUrl && !is_wp_error($redirectUrl)) {
-                wp_redirect($redirectUrl);
+                wp_safe_redirect($redirectUrl);
                 exit();
             }
 
@@ -170,7 +170,12 @@ class SocialAuthHandler
     private function handleGithubConfirm($data)
     {
         $state = Arr::get($data, 'state');
-        if (!$state || $state != AuthService::getStateToken()) {
+
+        // Timing safe, and spent immediately so the callback cannot be replayed.
+        $stateValid = AuthService::verifyStateToken($state);
+        AuthService::clearStateToken();
+
+        if (!$stateValid) {
             return new \WP_Error('state_mismatch', __('Sorry! we could not authenticate you via github', 'fluent-security'));
         }
 
@@ -238,7 +243,12 @@ class SocialAuthHandler
     private function handleGoogleConfirm($data)
     {
         $state = Arr::get($data, 'state');
-        if (!$state || $state != AuthService::getStateToken()) {
+
+        // Timing safe, and spent immediately so the callback cannot be replayed.
+        $stateValid = AuthService::verifyStateToken($state);
+        AuthService::clearStateToken();
+
+        if (!$stateValid) {
             return new \WP_Error('state_mismatch', __('Sorry! we could not authenticate you via google', 'fluent-security'));
         }
 
@@ -308,7 +318,12 @@ class SocialAuthHandler
     private function handleFacebookConfirm($data)
     {
         $state = Arr::get($data, 'state');
-        if (!$state || $state != AuthService::getStateToken()) {
+
+        // Timing safe, and spent immediately so the callback cannot be replayed.
+        $stateValid = AuthService::verifyStateToken($state);
+        AuthService::clearStateToken();
+
+        if (!$stateValid) {
             return new \WP_Error('state_mismatch', __('Sorry! we could not authenticate you via Facebook', 'fluent-security'));
         }
 

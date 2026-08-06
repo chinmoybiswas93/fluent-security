@@ -11,9 +11,11 @@ class SettingsController
     public static function getSettings(\WP_REST_Request $request)
     {
         return [
-            'settings'        => Helper::getAuthSettings(),
-            'user_roles'      => Helper::getUserRoles(),
-            'low_level_roles' => Helper::getLowLevelRoles()
+            'settings'            => Helper::getAuthSettings(),
+            'user_roles'          => Helper::getUserRoles(),
+            'low_level_roles'     => Helper::getLowLevelRoles(),
+            // wp-config.php wins over the saved settings, so say so in the UI.
+            'proxy_config_locked' => defined('FLUENT_AUTH_TRUSTED_PROXIES') && FLUENT_AUTH_TRUSTED_PROXIES
         ];
     }
 
@@ -61,17 +63,18 @@ class SettingsController
 
         $errors = [];
 
-        if ($settings['enable_auth_logs'] == 'yes') {
-            if (!$settings['login_try_limit']) {
-                $errors['login_try_limit'] = [
-                    'required' => 'Login try limit is required'
-                ];
-            }
-            if (!$settings['login_try_timing']) {
-                $errors['login_try_timing'] = [
-                    'required' => 'Login Timing is required'
-                ];
-            }
+        // Always required now: the attempt limit is no longer something that can be
+        // switched off from the settings screen.
+        if (empty($settings['login_try_limit'])) {
+            $errors['login_try_limit'] = [
+                'required' => 'Login try limit is required'
+            ];
+        }
+
+        if (empty($settings['login_try_timing'])) {
+            $errors['login_try_timing'] = [
+                'required' => 'Login Timing is required'
+            ];
         }
 
         if ($settings['email2fa'] == 'yes' && empty($settings['email2fa_roles'])) {

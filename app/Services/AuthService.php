@@ -146,14 +146,73 @@ class AuthService
 
     public static function setStateToken()
     {
-        $state = md5(wp_generate_uuid4());
-        setcookie('fs_auth_state', $state, time() + 3600, COOKIEPATH, COOKIE_DOMAIN, is_ssl());  /* expire in 1 hour */
+        $state = wp_generate_password(32, false);
+
+        /*
+         * HttpOnly: this is a CSRF token, no script has any reason to read it.
+         * SameSite=Lax: the provider returns the user by top level navigation, which Lax
+         * still sends the cookie on, while cross site POSTs do not get it.
+         */
+        if (!headers_sent()) {
+            setcookie('fs_auth_state', $state, [
+                'expires'  => time() + 900, // 15 minutes is ample for a round trip
+                'path'     => COOKIEPATH,
+                'domain'   => COOKIE_DOMAIN,
+                'secure'   => is_ssl(),
+                'httponly' => true,
+                'samesite' => 'Lax'
+            ]);
+        }
+
+        $_COOKIE['fs_auth_state'] = $state;
+
         return $state;
     }
 
     public static function getStateToken()
     {
         return Arr::get($_COOKIE, 'fs_auth_state');
+    }
+
+    /**
+     * Confirms the provider sent us back to a flow this browser actually started.
+     *
+     * @param $state string
+     * @return bool
+     */
+    public static function verifyStateToken($state)
+    {
+        $expected = self::getStateToken();
+
+        if (!$state || !$expected || !is_string($state)) {
+            return false;
+        }
+
+        return hash_equals($expected, $state);
+    }
+
+    /**
+     * A state token is good for exactly one callback. Leaving it in place kept it
+     * replayable for as long as the cookie lived.
+     *
+     * @return void
+     */
+    public static function clearStateToken()
+    {
+        unset($_COOKIE['fs_auth_state']);
+
+        if (headers_sent()) {
+            return;
+        }
+
+        setcookie('fs_auth_state', '', [
+            'expires'  => time() - 3600,
+            'path'     => COOKIEPATH,
+            'domain'   => COOKIE_DOMAIN,
+            'secure'   => is_ssl(),
+            'httponly' => true,
+            'samesite' => 'Lax'
+        ]);
     }
 
     /**

@@ -176,7 +176,7 @@ class SettingsControllerTest extends BaseTestCase
         $this->assertIsArray($result);
         $this->assertArrayHasKey('settings', $result);
         $this->assertArrayHasKey('disable_xmlrpc', $result['settings']);
-        $this->assertArrayHasKey('enable_auth_logs', $result['settings']);
         $this->assertArrayHasKey('login_try_limit', $result['settings']);
+        $this->assertArrayHasKey('login_try_timing', $result['settings']);
     }
 }

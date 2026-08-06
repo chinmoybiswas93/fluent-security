@@ -181,10 +181,13 @@ class MagicLoginHandler
 
         $existingCount = flsDb()->table('fls_login_hashes')
             ->where('ip_address', Helper::getIp())
+            // Scoped to magic links: 2FA and signup codes live in this table too, and
+            // counting those meant an ordinary 2FA login ate into this allowance.
+            ->where('use_type', 'magic_login')
             ->where('created_at', '>', $dateTime)
             ->count();
 
-        if ($existingCount > $loginLimit) {
+        if ($existingCount >= $loginLimit) {
             wp_send_json([
                 /* translators: %d: Minite  */
                 'message' => sprintf(__('You are trying too much. Please try after %d minutes', 'fluent-security'), $timingMinutes)
@@ -449,6 +452,9 @@ class MagicLoginHandler
 
         Helper::setLoginMedia('magic_login');
 
+        // The link came from their inbox, so the attempt limit must not block it.
+        Helper::setTokenVerifiedLogin(true);
+
         add_filter('authenticate', array($this, 'allowProgrammaticLogin'), 10, 3);    // hook in earlier than other callbacks to short-circuit them
         $user = wp_signon(array(
                 'user_login'    => $user->user_login,
@@ -456,6 +462,8 @@ class MagicLoginHandler
             )
         );
         remove_filter('authenticate', array($this, 'allowProgrammaticLogin'), 10);
+
+        Helper::setTokenVerifiedLogin(false);
 
         if ($user instanceof \WP_User) {
             wp_set_current_user($user->ID, $user->user_login);

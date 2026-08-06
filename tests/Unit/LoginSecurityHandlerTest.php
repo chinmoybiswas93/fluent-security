@@ -1,0 +1,595 @@
+<?php
+
+namespace FluentAuth\Tests\Unit;
+
+use FluentAuth\App\Helpers\Helper;
+use FluentAuth\App\Hooks\Handlers\LoginSecurityHandler;
+
+/**
+ * Application Password auth (REST / XML-RPC over Basic auth) bypasses the
+ * `authenticate` filter chain entirely, so it needs its own wiring into the
+ * login attempt limit. These tests pin that wiring down.
+ */
+class LoginSecurityHandlerTest extends BaseTestCase
+{
+    private $handler;
+
+    public function setUp(): void
+    {
+        parent::setUp();
+
+        global $wpdb;
+        $wpdb->query("DELETE FROM {$wpdb->prefix}fls_auth_logs");
+
+        $this->handler = new LoginSecurityHandler();
+
+        unset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']);
+    }
+
+    public function tearDown(): void
+    {
+        unset($_SERVER['PHP_AUTH_USER'], $_SERVER['PHP_AUTH_PW']);
+        parent::tearDown();
+    }
+
+    private function seedFailedAttempts($count)
+    {
+        global $wpdb;
+
+        for ($i = 0; $i < $count; $i++) {
+            $wpdb->insert("{$wpdb->prefix}fls_auth_logs", [
+                'username'   => 'admin',
+                'ip'         => Helper::getIp(),
+                'status'     => 'failed',
+                'media'      => 'app_password',
+                'count'      => 1,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            ]);
+        }
+    }
+
+    private function countRows($status)
+    {
+        global $wpdb;
+
+        return (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}fls_auth_logs WHERE `status` = %s",
+            $status
+        ));
+    }
+
+    public function testAppPasswordAuthIsAllowedWhenUnderTheLimit()
+    {
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $this->seedFailedAttempts(2);
+
+        $this->assertTrue($this->handler->maybeBlockAppPasswordAuth(true));
+    }
+
+    public function testAppPasswordAuthIsBlockedOnceTheLimitIsExceeded()
+    {
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        // Default limit is 5 within 30 minutes.
+        $this->seedFailedAttempts(6);
+
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+        $this->assertSame(1, $this->countRows('blocked'));
+    }
+
+    /**
+     * Core calls wp_is_application_passwords_available() more than once per request.
+     * The block must be resolved once so a single attempt is not counted twice.
+     */
+    public function testRepeatedChecksInOneRequestOnlyRecordTheBlockOnce()
+    {
+        global $wpdb;
+
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $this->seedFailedAttempts(6);
+
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+
+        $this->assertSame(1, $this->countRows('blocked'));
+
+        $blockedCount = (int)$wpdb->get_var(
+            "SELECT `count` FROM {$wpdb->prefix}fls_auth_logs WHERE `status` = 'blocked' LIMIT 1"
+        );
+
+        $this->assertSame(1, $blockedCount);
+    }
+
+    /**
+     * The same filter gates the Application Passwords UI on the profile screen.
+     * Requests without Basic auth credentials must be left completely alone,
+     * otherwise a blocked IP would also hide the UI from a legitimate admin.
+     */
+    public function testRequestsWithoutBasicAuthCredentialsAreUntouched()
+    {
+        $this->seedFailedAttempts(20);
+
+        $this->assertTrue($this->handler->maybeBlockAppPasswordAuth(true));
+        $this->assertSame(0, $this->countRows('blocked'));
+    }
+
+    public function testItNeverReEnablesAppPasswordsThatAreAlreadyDisabled()
+    {
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(false));
+    }
+
+    public function testFailedAppPasswordAttemptIsLoggedAndCountsTowardsTheLimit()
+    {
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $error = new \WP_Error('incorrect_password', 'The provided password is an invalid application password.');
+
+        $this->handler->logFailedAppPasswordAuth($error);
+
+        global $wpdb;
+        $row = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}fls_auth_logs WHERE `status` = 'failed' LIMIT 1");
+
+        $this->assertNotNull($row);
+        $this->assertSame('admin', $row->username);
+        $this->assertSame('app_password', $row->media);
+        $this->assertSame('incorrect_password', $row->error_code);
+        $this->assertSame(Helper::getIp(), $row->ip);
+    }
+
+    /**
+     * XML-RPC carries credentials in the request body, not Basic auth headers, and
+     * that path already fires `wp_login_failed`. Logging here too would double count.
+     */
+    public function testFailedAttemptWithoutBasicAuthCredentialsIsNotLogged()
+    {
+        $error = new \WP_Error('incorrect_password', 'The provided password is an invalid application password.');
+
+        $this->handler->logFailedAppPasswordAuth($error);
+
+        $this->assertSame(0, $this->countRows('failed'));
+    }
+
+    public function testMissingUserAgentDoesNotBreakLogging()
+    {
+        $originalAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : null;
+        unset($_SERVER['HTTP_USER_AGENT']);
+
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        try {
+            $this->handler->logFailedAppPasswordAuth(new \WP_Error('incorrect_password', 'nope'));
+            $this->assertSame(1, $this->countRows('failed'));
+        } finally {
+            if ($originalAgent !== null) {
+                $_SERVER['HTTP_USER_AGENT'] = $originalAgent;
+            }
+        }
+    }
+
+    private function blockedRow()
+    {
+        global $wpdb;
+
+        return $wpdb->get_row("SELECT * FROM {$wpdb->prefix}fls_auth_logs WHERE `status` = 'blocked' LIMIT 1");
+    }
+
+    /**
+     * checkLoginAttempt() used to bump the blocked row's count and then logBlockedAuth()
+     * bumped it again, so `count` grew by 2 per blocked attempt.
+     */
+    public function testEachBlockedAttemptIsCountedExactlyOnce()
+    {
+        $this->seedFailedAttempts(6);
+
+        // 4 separate requests, each hitting the limit. First creates the row, rest bump it.
+        for ($i = 0; $i < 4; $i++) {
+            $handler = new LoginSecurityHandler();
+            $_SERVER['PHP_AUTH_USER'] = 'admin';
+            $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+            $this->assertFalse($handler->maybeBlockAppPasswordAuth(true));
+        }
+
+        $this->assertSame(1, $this->countRows('blocked'), 'Only one blocked row should exist');
+        $this->assertSame(4, (int)$this->blockedRow()->count);
+    }
+
+    public function testBlockedAttemptsOnTheWebLoginPathAreCountedOnceToo()
+    {
+        $this->seedFailedAttempts(6);
+
+        for ($i = 0; $i < 3; $i++) {
+            $handler = new LoginSecurityHandler();
+            $error = $handler->maybeCheckLoginAttempts(
+                new \WP_Error('incorrect_password', 'nope'),
+                'admin',
+                'wrong password'
+            );
+            $this->assertWpErrorWithCode($error, 'login_error');
+        }
+
+        $this->assertSame(1, $this->countRows('blocked'));
+        $this->assertSame(3, (int)$this->blockedRow()->count);
+    }
+
+    /**
+     * The lockout must keep sliding while attempts continue, so `created_at` is still
+     * refreshed on every blocked attempt even though the count is no longer bumped here.
+     */
+    public function testBlockedAttemptRefreshesTheLockoutWindow()
+    {
+        global $wpdb;
+
+        $this->seedFailedAttempts(6);
+
+        $first = new LoginSecurityHandler();
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+        $this->assertFalse($first->maybeBlockAppPasswordAuth(true));
+
+        // Age the blocked row so it is close to falling out of the window.
+        $staleDate = date('Y-m-d H:i:s', current_time('timestamp') - 20 * 60);
+        $wpdb->update(
+            "{$wpdb->prefix}fls_auth_logs",
+            ['created_at' => $staleDate],
+            ['id' => $this->blockedRow()->id]
+        );
+
+        $second = new LoginSecurityHandler();
+        $this->assertFalse($second->maybeBlockAppPasswordAuth(true));
+
+        $this->assertNotSame(
+            $staleDate,
+            $this->blockedRow()->created_at,
+            'created_at should be refreshed so the lockout slides'
+        );
+    }
+
+    /**
+     * logBlockedAuth() looked back a fixed 1 hour while checkLoginAttempt() uses
+     * login_try_timing (30 minutes by default). A blocked row that had already expired
+     * was therefore still visible to logBlockedAuth(), which bumped that stale row
+     * instead of recording the new lockout - losing the log entry and the notification.
+     */
+    public function testAnExpiredBlockedRowIsNotRevivedByANewLockout()
+    {
+        global $wpdb;
+
+        // A blocked row from 45 minutes ago: outside the 30 minute window, inside 1 hour.
+        $staleDate = date('Y-m-d H:i:s', current_time('timestamp') - 45 * 60);
+        $wpdb->insert("{$wpdb->prefix}fls_auth_logs", [
+            'username'   => 'admin',
+            'ip'         => Helper::getIp(),
+            'status'     => 'blocked',
+            'error_code' => 'blocked',
+            'media'      => 'web',
+            'count'      => 7,
+            'created_at' => $staleDate,
+            'updated_at' => $staleDate,
+        ]);
+
+        $staleId = (int)$wpdb->insert_id;
+
+        $this->seedFailedAttempts(6);
+
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+
+        $stale = $wpdb->get_row("SELECT * FROM {$wpdb->prefix}fls_auth_logs WHERE id = {$staleId}");
+        $this->assertSame(7, (int)$stale->count, 'The expired block must be left alone');
+
+        $fresh = $wpdb->get_row(
+            "SELECT * FROM {$wpdb->prefix}fls_auth_logs WHERE `status` = 'blocked' AND id != {$staleId}"
+        );
+        $this->assertNotNull($fresh, 'The new lockout must be recorded as its own entry');
+        $this->assertSame(1, (int)$fresh->count);
+        $this->assertSame('app_password', $fresh->media);
+    }
+
+    private function seedAccountFailures($userId, $count, $ipPrefix = '203.0.113.')
+    {
+        global $wpdb;
+
+        for ($i = 0; $i < $count; $i++) {
+            $wpdb->insert("{$wpdb->prefix}fls_auth_logs", [
+                'username'   => 'site_admin',
+                'user_id'    => $userId,
+                // A different source each time: this is what the IP limit cannot see.
+                'ip'         => $ipPrefix . (($i % 200) + 1),
+                'status'     => 'failed',
+                'media'      => 'web',
+                'count'      => 1,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql'),
+            ]);
+        }
+    }
+
+    private function seedSuccessFrom($userId, $ip)
+    {
+        global $wpdb;
+
+        $wpdb->insert("{$wpdb->prefix}fls_auth_logs", [
+            'username'   => 'site_admin',
+            'user_id'    => $userId,
+            'ip'         => $ip,
+            'status'     => 'success',
+            'media'      => 'web',
+            'count'      => 1,
+            'created_at' => current_time('mysql'),
+            'updated_at' => current_time('mysql'),
+        ]);
+    }
+
+    public function testNoChallengeForAnAccountThatIsNotUnderAttack()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->seedAccountFailures($user->ID, 4);
+
+        $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
+    }
+
+    /**
+     * Default limit is 5, so the account threshold is 15 spread across any number of IPs.
+     */
+    public function testChallengeIsRaisedOnceAccountFailuresCrossTheThreshold()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->seedAccountFailures($user->ID, 15);
+
+        $this->assertTrue($this->handler->maybeRequireLoginChallenge(false, $user));
+    }
+
+    /**
+     * The whole point of counting per account: none of these IPs individually comes
+     * close to the per IP limit, so the existing block never fires.
+     */
+    public function testFailuresAreCountedAcrossManyDistinctIps()
+    {
+        global $wpdb;
+
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->seedAccountFailures($user->ID, 15);
+
+        $maxPerIp = (int)$wpdb->get_var(
+            "SELECT MAX(c) FROM (SELECT COUNT(*) AS c FROM {$wpdb->prefix}fls_auth_logs GROUP BY ip) t"
+        );
+
+        $this->assertSame(1, $maxPerIp, 'No single IP is anywhere near the IP limit');
+        $this->assertTrue($this->handler->maybeRequireLoginChallenge(false, $user));
+    }
+
+    /**
+     * Without this the owner would be challenged on every login for as long as someone
+     * kept guessing - which is the lockout-as-a-weapon problem all over again.
+     */
+    public function testAnIpTheUserHasLoggedInFromBeforeIsNotChallenged()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->seedAccountFailures($user->ID, 40);
+        $this->seedSuccessFrom($user->ID, Helper::getIp());
+
+        $this->assertTrue($this->handler->isTrustedIpForUser($user));
+        $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
+    }
+
+    public function testTrustIsPerUserNotPerIp()
+    {
+        $victim = $this->factory->user->create_and_get(['role' => 'administrator']);
+        $other = $this->factory->user->create_and_get(['role' => 'subscriber']);
+
+        // Someone else signing in from this IP must not vouch for the victim's account.
+        $this->seedSuccessFrom($other->ID, Helper::getIp());
+        $this->seedAccountFailures($victim->ID, 15);
+
+        $this->assertFalse($this->handler->isTrustedIpForUser($victim));
+        $this->assertTrue($this->handler->maybeRequireLoginChallenge(false, $victim));
+    }
+
+    public function testAccountThresholdIsFilterable()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->seedAccountFailures($user->ID, 6);
+        $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
+
+        $filter = function () {
+            return 6;
+        };
+
+        add_filter('fluent_auth/account_attempt_limit', $filter);
+        $result = $this->handler->maybeRequireLoginChallenge(false, $user);
+        remove_filter('fluent_auth/account_attempt_limit', $filter);
+
+        $this->assertTrue($result);
+    }
+
+    public function testChallengeIsSkippedWhenTheAttemptLimitIsDisabled()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $settings = Helper::getAuthSettings();
+        $settings['login_try_limit'] = 0;
+        update_option('__fls_auth_settings', $settings);
+        Helper::resetStatics();
+
+        $this->seedAccountFailures($user->ID, 50);
+
+        $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
+    }
+
+    // ------------------------------------------------------- login security always on
+
+    /**
+     * There is deliberately no setting for this. Every protection here reads the rows
+     * the log writes, so an off switch would just be a way to silently disable the
+     * plugin - and the old `enable_auth_logs` one did nothing anyway, because it
+     * compared the string 'no' as a boolean.
+     */
+    public function testLoginSecurityIsOnAndCannotBeSwitchedOffFromSettings()
+    {
+        $settings = Helper::getAuthSettings();
+
+        $this->assertArrayNotHasKey('enable_auth_logs', $settings);
+        $this->assertTrue(Helper::isLoginSecurityEnabled());
+
+        // Even an option left over from an older version must not turn it off.
+        $settings['enable_auth_logs'] = 'no';
+        update_option('__fls_auth_settings', $settings);
+        Helper::resetStatics();
+
+        $this->assertTrue(Helper::isLoginSecurityEnabled());
+    }
+
+    public function testAStaleDisabledOptionStillLogsAndEnforces()
+    {
+        $settings = Helper::getAuthSettings();
+        $settings['enable_auth_logs'] = 'no';
+        update_option('__fls_auth_settings', $settings);
+        Helper::resetStatics();
+
+        $this->handler->logFailedAuth('admin', new \WP_Error('incorrect_password', 'nope'));
+        $this->assertSame(1, $this->countRows('failed'));
+
+        $this->seedFailedAttempts(5);
+
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+    }
+
+    public function testCodeCanStillOptOutThroughTheFilter()
+    {
+        add_filter('fluent_auth/login_security_enabled', '__return_false');
+
+        try {
+            $this->assertFalse(Helper::isLoginSecurityEnabled());
+
+            $this->handler->logFailedAuth('admin', new \WP_Error('incorrect_password', 'nope'));
+            $this->assertSame(0, $this->countRows('failed'));
+
+            $this->seedFailedAttempts(50);
+
+            $_SERVER['PHP_AUTH_USER'] = 'admin';
+            $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+            $this->assertTrue((new LoginSecurityHandler())->maybeBlockAppPasswordAuth(true));
+
+            $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+            $this->seedAccountFailures($user->ID, 50);
+            $this->assertFalse($this->handler->maybeRequireLoginChallenge(false, $user));
+        } finally {
+            remove_filter('fluent_auth/login_security_enabled', '__return_false');
+        }
+    }
+
+    // --------------------------------------------------------------- attempt boundary
+
+    public function testTheConfiguredLimitIsTheActualNumberOfAllowedFailures()
+    {
+        // Limit is 5, so 4 previous failures still leave one attempt.
+        $this->seedFailedAttempts(4);
+
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $this->assertTrue($this->handler->maybeBlockAppPasswordAuth(true));
+    }
+
+    public function testTheAttemptAfterTheLimitIsBlocked()
+    {
+        // Used to allow a 6th: the test was `$limit >= $count`.
+        $this->seedFailedAttempts(5);
+
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+    }
+
+    // ------------------------------------------------------ emailed token exemption
+
+    /**
+     * A magic link or 2FA code redeemed from the user's inbox is not a password guess.
+     * Without this a locked out admin has no way back in until the window expires.
+     */
+    public function testATokenVerifiedLoginIsNotStoppedByTheBlock()
+    {
+        $this->seedFailedAttempts(20);
+
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        // Control: an ordinary login from this IP is blocked.
+        $blocked = $this->handler->maybeCheckLoginAttempts($user, $user->user_login, 'pw');
+        $this->assertWpErrorWithCode($blocked, 'login_error');
+
+        Helper::setTokenVerifiedLogin(true);
+        $allowed = (new LoginSecurityHandler())->maybeCheckLoginAttempts($user, $user->user_login, 'pw');
+        Helper::setTokenVerifiedLogin(false);
+
+        $this->assertSame($user, $allowed);
+    }
+
+    /**
+     * The exemption must skip the block only. If it skipped the rest of the method a
+     * magic link would become a way around two factor authentication.
+     */
+    public function testATokenVerifiedLoginStillRunsTheTwoFactorHook()
+    {
+        $this->seedFailedAttempts(20);
+
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $fired = false;
+        $spy = function () use (&$fired) {
+            $fired = true;
+        };
+
+        add_action('fluent_auth/login_attempts_checked', $spy);
+        Helper::setTokenVerifiedLogin(true);
+        (new LoginSecurityHandler())->maybeCheckLoginAttempts($user, $user->user_login, 'pw');
+        Helper::setTokenVerifiedLogin(false);
+        remove_action('fluent_auth/login_attempts_checked', $spy);
+
+        $this->assertTrue($fired);
+    }
+
+    public function testTheTokenExemptionIsClearedByResetStatics()
+    {
+        Helper::setTokenVerifiedLogin(true);
+        $this->assertTrue(Helper::isTokenVerifiedLogin());
+
+        Helper::resetStatics();
+
+        $this->assertFalse(Helper::isTokenVerifiedLogin());
+    }
+
+    public function testHooksAreRegistered()
+    {
+        $this->handler->register();
+
+        $this->assertNotFalse(
+            has_filter('wp_is_application_passwords_available', [$this->handler, 'maybeBlockAppPasswordAuth'])
+        );
+        $this->assertNotFalse(
+            has_action('application_password_failed_authentication', [$this->handler, 'logFailedAppPasswordAuth'])
+        );
+    }
+}

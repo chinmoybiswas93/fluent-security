@@ -20,11 +20,11 @@ class HelperTest extends BaseTestCase
 
         $this->assertIsArray($settings);
         $this->assertArrayHasKey('disable_xmlrpc', $settings);
-        $this->assertArrayHasKey('enable_auth_logs', $settings);
         $this->assertArrayHasKey('login_try_limit', $settings);
+        $this->assertArrayHasKey('login_try_timing', $settings);
         $this->assertEquals('no', $settings['disable_xmlrpc']);
-        $this->assertEquals('yes', $settings['enable_auth_logs']);
         $this->assertEquals(5, $settings['login_try_limit']);
+        $this->assertEquals(30, $settings['login_try_timing']);
     }
 
     public function testGetAuthSettingsDefaults()

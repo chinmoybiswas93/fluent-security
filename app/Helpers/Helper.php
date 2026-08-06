@@ -7,12 +7,42 @@ class Helper
     private static $loginMedia = 'web';
     private static $authSettings = null;
     private static $socialAuthSettings = null;
+    private static $resolvedIp = null;
+    private static $trustedProxies = null;
+    private static $tokenVerifiedLogin = false;
 
     public static function resetStatics()
     {
         self::$authSettings = null;
         self::$socialAuthSettings = null;
         self::$loginMedia = 'web';
+        self::$resolvedIp = null;
+        self::$trustedProxies = null;
+        self::$tokenVerifiedLogin = false;
+    }
+
+    /**
+     * Marks the login in progress as one where the user redeemed a token we emailed
+     * them - a magic link or a 2FA code.
+     *
+     * Those are not password guesses, and holding the token already proves more than a
+     * password does, so the attempt limit must not stand in their way. Otherwise a
+     * locked out admin has no route back in at all until the window expires.
+     *
+     * @param $status bool
+     * @return void
+     */
+    public static function setTokenVerifiedLogin($status = true)
+    {
+        self::$tokenVerifiedLogin = (bool)$status;
+    }
+
+    /**
+     * @return bool
+     */
+    public static function isTokenVerifiedLogin()
+    {
+        return self::$tokenVerifiedLogin;
     }
 
     public static function getAuthSettings()
@@ -26,7 +56,6 @@ class Helper
         $defaults = [
             'disable_xmlrpc'          => 'no',
             'disable_app_login'       => 'no',
-            'enable_auth_logs'        => 'yes',
             'login_try_limit'         => 5,
             'login_try_timing'        => 30,
             'disable_users_rest'      => 'no',
@@ -44,7 +73,9 @@ class Helper
             'disable_admin_bar'       => 'no',
             'disable_bar_roles'       => [
                 'subscriber'
-            ]
+            ],
+            'trusted_proxies'         => '',
+            'proxy_ip_header'         => ''
         ];
 
         $settings = get_option('__fls_auth_settings');
@@ -135,6 +166,24 @@ class Helper
         return $formattedCaps;
     }
 
+    /**
+     * The auth log is not an optional extra, it is what every protection here runs on:
+     * the attempt limit counts failed rows, the account challenge counts them per user,
+     * and the trusted IP exemption reads successful ones. Switching it off does not
+     * trade logging for something else, it turns the plugin off.
+     *
+     * So there is no setting for it. A site with a genuine reason - another WAF already
+     * doing this, a staging clone - can still opt out in code:
+     *
+     *     add_filter('fluent_auth/login_security_enabled', '__return_false');
+     *
+     * @return bool
+     */
+    public static function isLoginSecurityEnabled()
+    {
+        return (bool)apply_filters('fluent_auth/login_security_enabled', true);
+    }
+
     public static function getSetting($key, $default = false)
     {
         $config = self::getAuthSettings();
@@ -147,51 +196,190 @@ class Helper
 
     public static function getIp($anonymize = false)
     {
-        static $ipAddress;
-
-        if ($ipAddress) {
-            return $ipAddress;
+        if (self::$resolvedIp === null) {
+            self::$resolvedIp = self::resolveIp();
         }
 
-        if (empty($_SERVER['REMOTE_ADDR'])) {
-            // It's a local cli request
-            return '127.0.0.1';
+        if ($anonymize) {
+            return wp_privacy_anonymize_ip(self::$resolvedIp);
+        }
+
+        return self::$resolvedIp;
+    }
+
+    /**
+     * Works out who the visitor is, trusting a forwarded header only where the
+     * connection itself proves it came from a proxy we know about.
+     *
+     * Order matters: REMOTE_ADDR is the only value a client cannot forge, so anything
+     * that overrides it has to earn that right first.
+     *
+     * @return string
+     */
+    private static function resolveIp()
+    {
+        $remoteAddr = '';
+        if (!empty($_SERVER['REMOTE_ADDR'])) {
+            $remoteAddr = self::stripPort(sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR'])));
+        }
+
+        if (!$remoteAddr) {
+            // No connection behind this request, eg WP-CLI or cron.
+            return apply_filters('fluent_auth/user_ip', '127.0.0.1');
         }
 
         $ipAddress = '';
-        if (isset($_SERVER["HTTP_CF_CONNECTING_IP"])) {
-            //If it's a valid Cloudflare request
-            if (self::isCfIp($_SERVER['REMOTE_ADDR'])) {
-                //Use the CF-Connecting-IP header.
-                $ipAddress = $_SERVER['HTTP_CF_CONNECTING_IP'];
-            } else {
-                //If it isn't valid, then use REMOTE_ADDR.
-                $ipAddress = $_SERVER['REMOTE_ADDR'];
-            }
-        } else if ($_SERVER['REMOTE_ADDR'] == '127.0.0.1') {
-            // most probably it's local reverse proxy
-            if (isset($_SERVER["HTTP_CLIENT_IP"])) {
-                $ipAddress = $_SERVER["HTTP_CLIENT_IP"];
-            } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-                $ipAddress = (string)rest_is_ip_address(trim(current(preg_split('/,/', sanitize_text_field(wp_unslash($_SERVER['HTTP_X_FORWARDED_FOR']))))));
+
+        /*
+         * 1. Cloudflare. The header is only worth anything once we know the connection
+         *    actually came from a Cloudflare edge, so the range check comes first.
+         */
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && self::isCfIp($remoteAddr)) {
+            $candidate = self::stripPort(sanitize_text_field(wp_unslash($_SERVER['HTTP_CF_CONNECTING_IP'])));
+            if (rest_is_ip_address($candidate)) {
+                $ipAddress = $candidate;
             }
         }
 
+        /*
+         * 2. A reverse proxy the site owner has declared. Never inferred - guessing
+         *    from REMOTE_ADDR is exactly what lets a client name its own address.
+         */
+        if (!$ipAddress && self::isTrustedProxy($remoteAddr)) {
+            $header = self::getProxyIpHeader();
+            if ($header && !empty($_SERVER[$header])) {
+                $ipAddress = self::clientFromForwardedChain(
+                    sanitize_text_field(wp_unslash($_SERVER[$header]))
+                );
+            }
+        }
+
+        // 3. The connection itself.
         if (!$ipAddress) {
-            $ipAddress = $_SERVER['REMOTE_ADDR'];
+            $ipAddress = $remoteAddr;
         }
 
-        $ipAddress = preg_replace('/^(\d+\.\d+\.\d+\.\d+):\d+$/', '\1', $ipAddress);
+        return apply_filters('fluent_auth/user_ip', $ipAddress);
+    }
 
-        $ipAddress = apply_filters('fluent_auth/user_ip', $ipAddress);
+    /**
+     * Picks the visitor out of an X-Forwarded-For style list.
+     *
+     * The list reads client, proxy1, proxy2..., and anything to the left of our own
+     * proxies was supplied by whoever connected. So we walk in from the right and stop
+     * at the first address that is not one of ours.
+     *
+     * @param $value string
+     * @return string
+     */
+    private static function clientFromForwardedChain($value)
+    {
+        $parts = array_reverse(array_filter(array_map('trim', explode(',', $value))));
 
-        if ($anonymize) {
-            return wp_privacy_anonymize_ip($ipAddress);
+        foreach ($parts as $part) {
+            $part = self::stripPort($part);
+
+            if (!rest_is_ip_address($part)) {
+                continue;
+            }
+
+            if (self::isTrustedProxy($part)) {
+                continue;
+            }
+
+            return $part;
         }
 
-        $ipAddress = sanitize_text_field(wp_unslash($ipAddress));
+        return '';
+    }
 
-        return $ipAddress;
+    /**
+     * @param $ip string
+     * @return bool
+     */
+    public static function isTrustedProxy($ip)
+    {
+        foreach (self::getTrustedProxies() as $range) {
+            if (self::ipInRange($ip, $range)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Trusted proxy addresses / CIDR ranges.
+     *
+     * A wp-config.php constant wins over the settings screen: server topology is a
+     * sysadmin concern, and a constant cannot be flipped by a compromised admin login.
+     *
+     * @return array
+     */
+    public static function getTrustedProxies()
+    {
+        if (self::$trustedProxies !== null) {
+            return self::$trustedProxies;
+        }
+
+        if (defined('FLUENT_AUTH_TRUSTED_PROXIES') && FLUENT_AUTH_TRUSTED_PROXIES) {
+            $raw = FLUENT_AUTH_TRUSTED_PROXIES;
+        } else {
+            $raw = self::getSetting('trusted_proxies', '');
+        }
+
+        $proxies = array_values(array_filter(array_map('trim', preg_split('/[\s,]+/', (string)$raw))));
+
+        self::$trustedProxies = (array)apply_filters('fluent_auth/trusted_proxies', $proxies);
+
+        return self::$trustedProxies;
+    }
+
+    /**
+     * The $_SERVER key the declared proxy passes the visitor IP in.
+     *
+     * @return string
+     */
+    public static function getProxyIpHeader()
+    {
+        if (defined('FLUENT_AUTH_PROXY_IP_HEADER') && FLUENT_AUTH_PROXY_IP_HEADER) {
+            $header = FLUENT_AUTH_PROXY_IP_HEADER;
+        } else {
+            $header = self::getSetting('proxy_ip_header', '');
+        }
+
+        if (!$header) {
+            $header = 'HTTP_X_FORWARDED_FOR';
+        }
+
+        $header = strtoupper(str_replace('-', '_', trim((string)$header)));
+
+        if (strpos($header, 'HTTP_') !== 0) {
+            $header = 'HTTP_' . $header;
+        }
+
+        return $header;
+    }
+
+    /**
+     * Drops a trailing port, for both 1.2.3.4:56 and [::1]:56 forms.
+     *
+     * @param $ip string
+     * @return string
+     */
+    private static function stripPort($ip)
+    {
+        $ip = trim((string)$ip);
+
+        if (preg_match('/^\[(.+)\](?::\d+)?$/', $ip, $matches)) {
+            return $matches[1];
+        }
+
+        if (preg_match('/^(\d+\.\d+\.\d+\.\d+):\d+$/', $ip, $matches)) {
+            return $matches[1];
+        }
+
+        return $ip;
     }
 
     public static function loadView($template, $data)
@@ -332,12 +520,20 @@ class Helper
         return 'web';
     }
 
-    public static function isCfIp($ip = '')
+    /**
+     * Cloudflare's published edge ranges.
+     *
+     * The v6 list matters as much as the v4 one: Cloudflare reaches origins over IPv6
+     * wherever they answer on it, and an unrecognised edge means every visitor behind
+     * it collapses onto a single address.
+     *
+     * @see https://www.cloudflare.com/ips/
+     * @return array
+     */
+    public static function getCloudflareIpRanges()
     {
-        if (!$ip) {
-            $ip = $_SERVER['REMOTE_ADDR'];
-        }
-        $cloudflareIPRanges = array(
+        $ranges = [
+            // IPv4
             '173.245.48.0/20',
             '103.21.244.0/22',
             '103.22.200.0/22',
@@ -353,13 +549,34 @@ class Helper
             '104.24.0.0/14',
             '172.64.0.0/13',
             '131.0.72.0/22',
-        );
-        $validCFRequest = false;
-        //Make sure that the request came via Cloudflare.
-        foreach ($cloudflareIPRanges as $range) {
-            //Use the ip_in_range function from Joomla.
+            // IPv6
+            '2400:cb00::/32',
+            '2606:4700::/32',
+            '2803:f800::/32',
+            '2405:b500::/32',
+            '2405:8100::/32',
+            '2a06:98c0::/29',
+            '2c0f:f248::/32',
+        ];
+
+        // Filterable so a range change does not have to wait for a plugin release.
+        return (array)apply_filters('fluent_auth/cloudflare_ip_ranges', $ranges);
+    }
+
+    public static function isCfIp($ip = '')
+    {
+        if (!$ip && !empty($_SERVER['REMOTE_ADDR'])) {
+            $ip = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+        }
+
+        $ip = self::stripPort($ip);
+
+        if (!$ip) {
+            return false;
+        }
+
+        foreach (self::getCloudflareIpRanges() as $range) {
             if (self::ipInRange($ip, $range)) {
-                //IP is valid. Belongs to Cloudflare.
                 return true;
             }
         }
@@ -367,54 +584,54 @@ class Helper
         return false;
     }
 
+    /**
+     * CIDR / exact match that understands both IPv4 and IPv6.
+     *
+     * Works on the packed binary form, because ip2long() - what this used to rely on -
+     * simply returns false for any IPv6 address.
+     *
+     * @param $ip string
+     * @param $range string
+     * @return bool
+     */
     private static function ipInRange($ip, $range)
     {
-        if (strpos($range, '/') !== false) {
-            // $range is in IP/NETMASK format
-            list($range, $netmask) = explode('/', $range, 2);
-            if (strpos($netmask, '.') !== false) {
-                // $netmask is a 255.255.0.0 format
-                $netmask = str_replace('*', '0', $netmask);
-                $netmask_dec = ip2long($netmask);
-                return ((ip2long($ip) & $netmask_dec) == (ip2long($range) & $netmask_dec));
-            } else {
-                // $netmask is a CIDR size block
-                // fix the range argument
-                $x = explode('.', $range);
-                while (count($x) < 4) $x[] = '0';
-                list($a, $b, $c, $d) = $x;
-                $range = sprintf("%u.%u.%u.%u", empty($a) ? '0' : $a, empty($b) ? '0' : $b, empty($c) ? '0' : $c, empty($d) ? '0' : $d);
-                $range_dec = ip2long($range);
-                $ip_dec = ip2long($ip);
+        if (strpos($range, '/') === false) {
+            return $ip === $range;
+        }
 
-                # Strategy 1 - Create the netmask with 'netmask' 1s and then fill it to 32 with 0s
-                #$netmask_dec = bindec(str_pad('', $netmask, '1') . str_pad('', 32-$netmask, '0'));
+        list($subnet, $bits) = explode('/', $range, 2);
 
-                # Strategy 2 - Use math to create it
-                /** @phpstan-ignore binaryOp.invalid */
-                $wildcard_dec = pow(2, (32 - $netmask)) - 1;
-                $netmask_dec = ~$wildcard_dec;
+        $ipBin = @inet_pton($ip);
+        $subnetBin = @inet_pton($subnet);
 
-                return (($ip_dec & $netmask_dec) == ($range_dec & $netmask_dec));
-            }
-        } else {
-            // range might be 255.255.*.* or 1.2.3.0-1.2.3.255
-            if (strpos($range, '*') !== false) { // a.b.*.* format
-                // Just convert to A-B format by setting * to 0 for A and 255 for B
-                $lower = str_replace('*', '0', $range);
-                $upper = str_replace('*', '255', $range);
-                $range = "$lower-$upper";
-            }
-
-            if (strpos($range, '-') !== false) { // A-B format
-                list($lower, $upper) = explode('-', $range, 2);
-                $lower_dec = (float)sprintf("%u", ip2long($lower));
-                $upper_dec = (float)sprintf("%u", ip2long($upper));
-                $ip_dec = (float)sprintf("%u", ip2long($ip));
-                return (($ip_dec >= $lower_dec) && ($ip_dec <= $upper_dec));
-            }
+        // false on malformed input, differing lengths means v4 against v6.
+        if ($ipBin === false || $subnetBin === false || strlen($ipBin) !== strlen($subnetBin)) {
             return false;
         }
+
+        $bits = (int)$bits;
+        $maxBits = strlen($ipBin) * 8;
+
+        if ($bits < 0 || $bits > $maxBits) {
+            return false;
+        }
+
+        $wholeBytes = intdiv($bits, 8);
+        $remainingBits = $bits % 8;
+
+        if ($wholeBytes && strncmp($ipBin, $subnetBin, $wholeBytes) !== 0) {
+            return false;
+        }
+
+        if ($remainingBits) {
+            $mask = chr((0xFF << (8 - $remainingBits)) & 0xFF);
+            if ((($ipBin[$wholeBytes] ^ $subnetBin[$wholeBytes]) & $mask) !== "\0") {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public static function getAuthCustomizerSettings()

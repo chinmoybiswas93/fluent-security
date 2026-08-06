@@ -42,8 +42,8 @@
                                     <span class="fls_value">{{ settings.disable_app_login }}</span>
                                 </li>
                                 <li>
-                                    <span class="fls_label">{{ $t('Log Login Logs') }}</span>
-                                    <span class="fls_value">{{ settings.enable_auth_logs }}</span>
+                                    <span class="fls_label">{{ $t('Login Try Limit') }}</span>
+                                    <span class="fls_value">{{ settings.login_try_limit }} / {{ settings.login_try_timing }} {{ $t('minutes') }}</span>
                                 </li>
                                 <li>
                                     <span class="fls_label">{{ $t('Disable Public User Indexing') }}</span>

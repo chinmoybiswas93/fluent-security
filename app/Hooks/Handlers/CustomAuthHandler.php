@@ -958,34 +958,39 @@ class CustomAuthHandler
             $user_data = get_user_by('login', $usernameOrEmail);
         }
 
-        if (!$user_data) {
-            wp_send_json([
-                'message' => __('Invalid username or email', 'fluent-security')
-            ], 422);
-        }
-
+        /*
+         * Deliberately no early return for an unknown account. Bailing here both told an
+         * attacker which usernames are real and skipped `lostpassword_errors`, which is
+         * where the attempt limit lives - so probing for accounts was never rate limited.
+         */
         $user_data = apply_filters('lostpassword_user_data', $user_data, $errors);
 
         do_action('lostpassword_post', $errors, $user_data);
 
         $errors = apply_filters('lostpassword_errors', $errors, $user_data);
 
+        // Being rate limited is about the requester, not the account, so it is safe to say.
         if ($errors->has_errors()) {
             wp_send_json([
                 'message' => $errors->get_error_message()
             ], 422);
         }
 
+        /*
+         * From here every outcome answers identically. Anything that varies with whether
+         * the account exists, or is allowed to reset, hands out the same information the
+         * early return used to.
+         */
+        $sentResponse = [
+            'message' => __('Please check your email for the reset link', 'fluent-security')
+        ];
+
         if (!$user_data) {
-            wp_send_json([
-                'message' => __('<strong>Error</strong>: There is no account with that username or email address.', 'fluent-security')
-            ], 422);
+            wp_send_json($sentResponse);
         }
 
         if (is_multisite() && !is_user_member_of_blog($user_data->ID, get_current_blog_id())) {
-            wp_send_json([
-                'message' => __('<strong>Error</strong>: Invalid username or email', 'fluent-security')
-            ], 422);
+            wp_send_json($sentResponse);
         }
 
         // Redefining user_login ensures we return the right case in the email.
@@ -995,16 +1000,9 @@ class CustomAuthHandler
 
         $allow = apply_filters('allow_password_reset', true, $user_data->ID);
 
-        if (!$allow) {
-            wp_send_json([
-                'message' => __('Password reset is not allowed for this user', 'fluent-security')
-            ], 422);
-        }
-
-        if (is_wp_error($allow)) {
-            wp_send_json([
-                'message' => $allow->get_error_message()
-            ], 422);
+        // Same reasoning: "not allowed for this user" confirms the user exists.
+        if (!$allow || is_wp_error($allow)) {
+            wp_send_json($sentResponse);
         }
 
 
@@ -1080,9 +1078,7 @@ class CustomAuthHandler
 
         \wp_mail($user_data->user_email, $notification_email['subject'], $notification_email['message'], $notification_email['headers']);
 
-        wp_send_json([
-            'message' => __('Please check your email for the reset link', 'fluent-security')
-        ]);
+        wp_send_json($sentResponse);
     }
 
     public function validateSignUpData($data)
@@ -1244,7 +1240,7 @@ class CustomAuthHandler
             ->where('created_at', '>', date('Y-m-d H:i:s', current_time('timestamp') - 60 * 60))
             ->count();
 
-        if ($existingCount > 5) {
+        if ($existingCount >= 5) {
             return __('Too many requests. Please try again later', 'fluent-security');
         }
 
