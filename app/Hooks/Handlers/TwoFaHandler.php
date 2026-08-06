@@ -9,6 +9,50 @@ use FluentAuth\App\Services\SystemEmailService;
 
 class TwoFaHandler
 {
+    /**
+     * How many times a single emailed login code may be guessed before it is burned.
+     * Matches AuthService::verifyTokenHash so both flows behave the same way.
+     */
+    const MAX_VERIFY_ATTEMPTS = 5;
+
+    /**
+     * Codes issued because email 2FA is switched on for the user's role.
+     */
+    const USE_TYPE = 'email_2_fa';
+
+    /**
+     * Codes issued because the account itself is under attack. Recorded separately so
+     * the code stays usable even where email 2FA is not otherwise enabled.
+     */
+    const CHALLENGE_USE_TYPE = '2fa_challenge';
+
+    private $challengeCache = [];
+
+    /**
+     * @return array
+     */
+    private function twoFaUseTypes()
+    {
+        return [self::USE_TYPE, self::CHALLENGE_USE_TYPE];
+    }
+
+    /**
+     * @param $user \WP_User
+     * @return bool
+     */
+    private function isChallengeRequired($user)
+    {
+        if (!$user instanceof \WP_User) {
+            return false;
+        }
+
+        if (!isset($this->challengeCache[$user->ID])) {
+            $this->challengeCache[$user->ID] = (bool)apply_filters('fluent_auth/2fa_challenge_required', false, $user);
+        }
+
+        return $this->challengeCache[$user->ID];
+    }
+
     public function register()
     {
         add_action('fluent_auth/login_attempts_checked', [$this, 'maybe2FaRedirect'], 1, 1);
@@ -19,7 +63,7 @@ class TwoFaHandler
 
             $logHash = flsDb()->table('fls_login_hashes')
                 ->where('login_hash', $hash)
-                ->where('use_type', 'email_2_fa')
+                ->whereIn('use_type', $this->twoFaUseTypes())
                 ->orderBy('id', 'DESC')
                 ->first();
 
@@ -38,12 +82,16 @@ class TwoFaHandler
 
     public function render2FaForm()
     {
-        if (!$this->isEnabled()) {
-            return false;
-        }
-
         if (!isset($_GET['fls_2fa']) || $_GET['fls_2fa'] != 'email') {
             return;
+        }
+
+        /*
+         * A challenge can be raised on a site where email 2FA is otherwise off, so the
+         * form has to render for a pending challenge too or the login dead ends here.
+         */
+        if (!$this->isEnabled() && !$this->hasPendingChallenge(Arr::get($_REQUEST, 'login_hash'))) {
+            return false;
         }
 
         login_header(__('Provide Login Code', 'fluent-security'), '', null);
@@ -112,7 +160,7 @@ class TwoFaHandler
             'status'           => 'issued',
             'ip_address'       => Helper::getIp(),
             'redirect_intend'  => $redirectIntend,
-            'use_type'         => 'email_2_fa',
+            'use_type'         => $this->isChallengeRequired($user) ? self::CHALLENGE_USE_TYPE : self::USE_TYPE,
             'two_fa_code_hash' => wp_hash_password($twoFaCode),
             'valid_till'       => date('Y-m-d H:i:s', current_time('timestamp') + 10 * 60),
             'created_at'       => current_time('mysql'),
@@ -131,7 +179,14 @@ class TwoFaHandler
 
         $data['two_fa_code'] = $twoFaCode;
 
-        $this->send2FaEmail($data, $user, $autoLoginUrl);
+        /*
+         * The code row is always created and the caller always gets a redirect, so 2FA
+         * stays enforced no matter what. Only the outgoing email is throttled - someone
+         * holding the password can otherwise trigger an unlimited number of them.
+         */
+        if (!$this->hasReachedCodeRequestLimit($user)) {
+            $this->send2FaEmail($data, $user, $autoLoginUrl);
+        }
 
         do_action('fls_send_2fa_code', $data, $user, $autoLoginUrl);
 
@@ -166,7 +221,7 @@ class TwoFaHandler
 
         $logHash = flsDb()->table('fls_login_hashes')
             ->where('login_hash', $hash)
-            ->where('use_type', 'email_2_fa')
+            ->whereIn('use_type', $this->twoFaUseTypes())
             ->orderBy('id', 'DESC')
             ->first();
 
@@ -176,33 +231,77 @@ class TwoFaHandler
             ], 422);
         }
 
+        $user = get_user_by('ID', $logHash->user_id);
+
+        /*
+         * Every one of these has to be settled BEFORE the code is compared. Checking
+         * them afterwards (as this used to) means the attempt cap only ever applies to
+         * a code that already matched, so a wrong code could be retried indefinitely.
+         */
+        if (!$user || $logHash->status != 'issued' || strtotime($logHash->created_at) < current_time('timestamp') - 600) {
+            wp_send_json([
+                'message' => __('Sorry, your login code has been expired. Please try to login again', 'fluent-security')
+            ], 422);
+        }
+
+        if ($logHash->used_count >= self::MAX_VERIFY_ATTEMPTS) {
+            $this->invalidate2FaCode($logHash);
+
+            wp_send_json([
+                'message' => __('Too many invalid attempts for this login code. Please try to login again', 'fluent-security')
+            ], 422);
+        }
+
+        /*
+         * A challenge code authorises itself: it was issued precisely because the
+         * account was under attack, so it has to keep working even if the attack has
+         * since died down or email 2FA is not enabled for this role at all.
+         */
+        if ($logHash->use_type !== self::CHALLENGE_USE_TYPE && !$this->isEnabled($user)) {
+            wp_send_json([
+                'message' => __('Sorry, You can not use this verification method', 'fluent-security')
+            ], 422);
+        }
+
         if (!wp_check_password($code, $logHash->two_fa_code_hash)) {
+            $usedCount = $logHash->used_count + 1;
+
+            $update = [
+                'used_count' => $usedCount,
+                'updated_at' => current_time('mysql')
+            ];
+
+            // Burn the code once the cap is reached, it must not stay guessable.
+            if ($usedCount >= self::MAX_VERIFY_ATTEMPTS) {
+                $update['status'] = 'failed';
+            }
+
             flsDb()->table('fls_login_hashes')
                 ->where('id', $logHash->id)
-                ->update([
-                    'used_count' => $logHash->used_count + 1
-                ]);
+                ->update($update);
+
+            /*
+             * The first factor already succeeded to get here, so nothing has been
+             * recorded as a failure yet. Reporting it makes these attempts visible to
+             * the IP attempt limit - without that an attacker who has the password can
+             * just log in again for a fresh code and keep guessing forever.
+             */
+            Helper::setLoginMedia('two_factor_email');
+
+            do_action('wp_login_failed', $user->user_login, new \WP_Error(
+                'fls_invalid_2fa_code',
+                __('Invalid two factor authentication code', 'fluent-security')
+            ));
 
             wp_send_json([
                 'message' => __('Your provided code is not valid. Please try again', 'fluent-security')
             ], 422);
         }
 
-        $user = get_user_by('ID', $logHash->user_id);
-
-        if (!$this->isEnabled($user)) {
-            wp_send_json([
-                'message' => __('Sorry, You can not use this verification method', 'fluent-security')
-            ], 422);
-        }
-
-        if (strtotime($logHash->created_at) < current_time('timestamp') - 600 || !$user || $logHash->status != 'issued' || $logHash->used_count > 5) {
-            wp_send_json([
-                'message' => __('Sorry, your login code has been expired. Please try to login again', 'fluent-security')
-            ], 422);
-        }
-
         remove_action('fluent_auth/login_attempts_checked', [$this, 'maybe2FaRedirect'], 1);
+
+        // They read the code out of their inbox, so the attempt limit must not block it.
+        Helper::setTokenVerifiedLogin(true);
 
         add_filter('authenticate', array($this, 'allowProgrammaticLogin'), 10, 3);    // hook in earlier than other callbacks to short-circuit them
         $user = wp_signon(array(
@@ -213,6 +312,8 @@ class TwoFaHandler
         );
 
         remove_filter('authenticate', array($this, 'allowProgrammaticLogin'), 10);
+
+        Helper::setTokenVerifiedLogin(false);
 
         if ($user instanceof \WP_User) {
             wp_set_current_user($user->ID, $user->user_login);
@@ -358,8 +459,82 @@ class TwoFaHandler
         return get_user_by('login', $username);
     }
 
+    /**
+     * @param $hash string
+     * @return bool
+     */
+    private function hasPendingChallenge($hash)
+    {
+        $hash = sanitize_text_field($hash);
+
+        if (!$hash) {
+            return false;
+        }
+
+        return (bool)flsDb()->table('fls_login_hashes')
+            ->where('login_hash', $hash)
+            ->where('use_type', self::CHALLENGE_USE_TYPE)
+            ->where('status', 'issued')
+            ->first();
+    }
+
+    /**
+     * Burns a login code so it can no longer be guessed.
+     *
+     * @param $logHash object
+     * @return void
+     */
+    private function invalidate2FaCode($logHash)
+    {
+        if ($logHash->status === 'failed') {
+            return;
+        }
+
+        flsDb()->table('fls_login_hashes')
+            ->where('id', $logHash->id)
+            ->update([
+                'status'     => 'failed',
+                'updated_at' => current_time('mysql')
+            ]);
+    }
+
+    /**
+     * Whether we have already emailed this user enough codes for now.
+     *
+     * Keyed on the user rather than the IP - the point is protecting their inbox,
+     * and the requests come from whoever holds the password.
+     *
+     * @param $user \WP_User
+     * @return bool
+     */
+    private function hasReachedCodeRequestLimit($user)
+    {
+        $minutes = (int)Helper::getSetting('login_try_timing');
+        $limit = (int)Helper::getSetting('login_try_limit');
+
+        $limit = (int)apply_filters('fluent_auth/2fa_code_request_limit', $limit, $user);
+        $minutes = (int)apply_filters('fluent_auth/2fa_code_request_timing', $minutes, $user);
+
+        if (!$minutes || !$limit) {
+            return false;
+        }
+
+        $count = flsDb()->table('fls_login_hashes')
+            ->where('user_id', $user->ID)
+            ->whereIn('use_type', $this->twoFaUseTypes())
+            ->where('created_at', '>', date('Y-m-d H:i:s', current_time('timestamp') - $minutes * 60))
+            ->count();
+
+        return $count > $limit;
+    }
+
     private function isEnabled($user = false)
     {
+        // An account under attack is challenged regardless of the role settings.
+        if ($this->isChallengeRequired($user)) {
+            return true;
+        }
+
         if (Helper::getSetting('email2fa') !== 'yes') {
             return false;
         }

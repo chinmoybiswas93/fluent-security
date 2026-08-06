@@ -11,9 +11,11 @@ class SettingsController
     public static function getSettings(\WP_REST_Request $request)
     {
         return [
-            'settings'        => Helper::getAuthSettings(),
-            'user_roles'      => Helper::getUserRoles(),
-            'low_level_roles' => Helper::getLowLevelRoles()
+            'settings'            => Helper::getAuthSettings(),
+            'user_roles'          => Helper::getUserRoles(),
+            'low_level_roles'     => Helper::getLowLevelRoles(),
+            // wp-config.php wins over the saved settings, so say so in the UI.
+            'proxy_config_locked' => defined('FLUENT_AUTH_TRUSTED_PROXIES') && FLUENT_AUTH_TRUSTED_PROXIES
         ];
     }
 
