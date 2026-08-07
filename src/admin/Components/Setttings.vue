@@ -118,26 +118,9 @@
                             </template>
                         </div>
 
-                        <div class="fls_inner_group" :class="'fls_inner_group_' + settings.email2fa">
-                            <el-form-item>
-                                <el-checkbox v-model="settings.email2fa" true-label="yes" false-label="no">
-                                    {{ $t('Enable Two-Factor Authentication via Email') }}
-                                </el-checkbox>
-                            </el-form-item>
-                            <el-form-item style="background: white; padding: 10px 20px;"
-                                          v-if="settings.email2fa == 'yes'">
-                                <template #label>
-                                    {{ $t('Select Roles that requires Two-Factor Authentication') }}
-                                </template>
-                                <el-select :placeholder="$t('Enabled for all user roles')" clearable
-                                           v-model="settings.email2fa_roles" :multiple="true">
-                                    <el-option v-for="role in user_roles" :value="role.id" :label="role.title"
-                                               :key="role.id"></el-option>
-                                </el-select>
-                            </el-form-item>
-                        </div>
-
                     </div>
+
+                    <TwoFaSettings :settings="settings" :user_roles="user_roles"/>
 
                     <div class="fls_login_settings">
                         <h3>{{ $t('Other Settings') }}</h3>
@@ -261,11 +244,13 @@
 
 <script type="text/babel">
 import {InfoFilled} from '@element-plus/icons-vue'
+import TwoFaSettings from './TwoFa/_TwoFaSettings.vue'
 
 export default {
     name: 'Settings',
     components: {
-        InfoFilled
+        InfoFilled,
+        TwoFaSettings
     },
     data() {
         return {
@@ -331,7 +316,13 @@ export default {
                 });
         },
         applyRecommended() {
+            /*
+             * Spread what is already saved first. Saving replaces the whole option, so
+             * a key missing from this literal is a key erased - which is how the digest
+             * schedule used to get silently reset by a button that never mentioned it.
+             */
             this.settings = {
+                ...this.settings,
                 disable_xmlrpc: 'yes',
                 disable_app_login: 'no',
                 login_try_limit: 5,
@@ -347,6 +338,14 @@ export default {
                 magic_link_primary: 'no',
                 email2fa: 'yes',
                 email2fa_roles: ['administrator', 'editor', 'author'],
+                totp_2fa: 'yes',
+                totp_2fa_roles: [],
+                /*
+                 * Recommended, not imposed: forcing enrollment sends people to a setup
+                 * screen they cannot leave, which is not something a button labelled
+                 * "recommended settings" should decide on an administrator's behalf.
+                 */
+                totp_required_roles: this.settings.totp_required_roles || [],
                 disable_admin_bar: 'yes',
                 disable_bar_roles: ['subscriber'],
                 // Server topology, not a preference - never overwrite it with a default.

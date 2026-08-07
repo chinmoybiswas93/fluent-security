@@ -4,6 +4,8 @@ import Settings from './Components/Setttings.vue';
 import AuthShortcodes from './Components/AuthShortcodes.vue';
 import LoginRedirects from './Components/LoginRedirects.vue';
 
+import EnrolledUsers from './Components/TwoFa/EnrolledUsers.vue';
+
 import CustomWpEmails from './Components/CustomWpEmails/AllEmails.vue';
 import EditWpEmail from './Components/CustomWpEmails/EditWpEmail.vue';
 import TemplateSettings from "./Components/CustomWpEmails/TemplateSettings.vue";
@@ -38,6 +40,16 @@ export var routes = [
         meta: {
             active: 'settings',
             title: 'Settings'
+        }
+    },
+    {
+        path: '/two-fa-enrollment',
+        name: 'two_fa_enrollment',
+        component: EnrolledUsers,
+        meta: {
+            // Reached from the settings screen, so that is what stays lit in the menu.
+            active: 'settings',
+            title: 'Two-Factor Enrollment'
         }
     },
     {

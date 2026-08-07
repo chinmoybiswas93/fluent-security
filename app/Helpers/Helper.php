@@ -105,6 +105,11 @@ class Helper
             'magic_link_primary'      => 'no',
             'email2fa'                => 'no',
             'email2fa_roles'          => ['administrator', 'editor', 'author'],
+            'totp_2fa'                => 'no',
+            // Roles that may set up an authenticator app. Empty means every role may.
+            'totp_2fa_roles'          => [],
+            // Roles that must have one before they can use the admin area.
+            'totp_required_roles'     => [],
             'disable_admin_bar'       => 'no',
             'disable_bar_roles'       => [
                 'subscriber'

@@ -79,7 +79,32 @@ class SettingsController
 
         if ($settings['email2fa'] == 'yes' && empty($settings['email2fa_roles'])) {
             $errors['email2fa_roles'] = [
-                'required' => 'Two-Factor Authentication roles is required'
+                'required' => 'Please choose at least one role that needs an emailed code'
+            ];
+        }
+
+        /*
+         * A role cannot be made to set up an authenticator app unless it is also allowed
+         * one - that would be a policy demanding something the profile screen refuses to
+         * offer, which is a locked out user rather than a secured one. An empty allow
+         * list means every role, so nothing can conflict with it.
+         */
+        if (!empty($settings['totp_required_roles']) && !empty($settings['totp_2fa_roles'])) {
+            $undeclared = array_diff((array)$settings['totp_required_roles'], (array)$settings['totp_2fa_roles']);
+
+            if ($undeclared) {
+                $errors['totp_required_roles'] = [
+                    'invalid' => sprintf(
+                        'These roles are required to use an authenticator app but are not allowed one: %s',
+                        implode(', ', $undeclared)
+                    )
+                ];
+            }
+        }
+
+        if ($settings['totp_2fa'] !== 'yes' && !empty($settings['totp_required_roles'])) {
+            $errors['totp_required_roles'] = [
+                'invalid' => 'Authenticator apps must be enabled before any role can be required to use one'
             ];
         }
 

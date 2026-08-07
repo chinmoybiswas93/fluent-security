@@ -64,7 +64,20 @@ class TotpProfileHandler
 
                     if ($isEnrolled) {
                         $this->renderEnrolled($user, $isSelf);
+                    } elseif (!TotpTwoFaMethod::isAllowedForUser($user)) {
+                        echo '<p class="description">' . esc_html__('An authenticator app is not enabled for this account.', 'fluent-security') . '</p>';
                     } elseif ($isSelf) {
+                        if (TotpTwoFaMethod::isRequiredForUser($user)) {
+                            ?>
+                            <div style="border-left: 4px solid #dba617;background:#fff;padding: 10px 14px;margin: 0 0 16px;box-shadow: 0 1px 1px rgba(0,0,0,.04);">
+                                <p style="margin: 0;">
+                                    <strong><?php esc_html_e('Required for your account.', 'fluent-security'); ?></strong>
+                                    <?php esc_html_e('Set up an authenticator app to continue using the admin area.', 'fluent-security'); ?>
+                                </p>
+                            </div>
+                            <?php
+                        }
+
                         $this->renderSetup($user);
                     } else {
                         echo '<p class="description">' . esc_html__('This user has not set up an authenticator app.', 'fluent-security') . '</p>';
@@ -240,6 +253,11 @@ class TotpProfileHandler
         $submitted = sanitize_text_field((string)Arr::get($_POST, 'fls_totp_confirm_code', ''));
 
         if ($submitted === '' || TotpTwoFaMethod::isEnrolled($userId)) {
+            return;
+        }
+
+        // The policy may have changed since the form was drawn.
+        if (!TotpTwoFaMethod::isAllowedForUser($userId)) {
             return;
         }
 

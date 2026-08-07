@@ -18,6 +18,8 @@ $permissions = [$appPermission];
 
 $router->get('settings', ['\FluentAuth\App\Http\Controllers\SettingsController', 'getSettings'], $permissions)
     ->post('settings', ['\FluentAuth\App\Http\Controllers\SettingsController', 'updateSettings'], $permissions)
+    ->get('two-fa/users', ['\FluentAuth\App\Http\Controllers\TwoFaController', 'getUsers'], $permissions)
+    ->post('two-fa/users/{id}/reset', ['\FluentAuth\App\Http\Controllers\TwoFaController', 'resetUser'], $permissions)
     ->get('auth-logs', ['\FluentAuth\App\Http\Controllers\LogsController', 'getLogs'], $permissions)
     ->get('quick-stats', ['\FluentAuth\App\Http\Controllers\LogsController', 'quickStats'], $permissions)
     ->post('delete-log/{id}', ['\FluentAuth\App\Http\Controllers\LogsController', 'deleteLog'], $permissions)

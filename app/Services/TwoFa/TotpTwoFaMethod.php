@@ -3,6 +3,7 @@
 namespace FluentAuth\App\Services\TwoFa;
 
 use FluentAuth\App\Helpers\Arr;
+use FluentAuth\App\Helpers\Helper;
 
 /**
  * A code from an authenticator app.
@@ -79,7 +80,27 @@ class TotpTwoFaMethod extends BaseTwoFaMethod
      */
     public function isAvailableForUser($user)
     {
-        if (!$user instanceof \WP_User) {
+        return self::isAllowedForUser($user) && self::isEnrolled($user);
+    }
+
+    /**
+     * Whether this user may set up an authenticator app at all.
+     *
+     * Separate from isAvailableForUser because enrollment has to be offered before
+     * there is anything to be available - the profile screen asks this one.
+     *
+     * @param $user \WP_User|int
+     * @return bool
+     */
+    public static function isAllowedForUser($user)
+    {
+        $user = self::resolveUser($user);
+
+        if (!$user) {
+            return false;
+        }
+
+        if (Helper::getSetting('totp_2fa') !== 'yes') {
             return false;
         }
 
@@ -87,7 +108,59 @@ class TotpTwoFaMethod extends BaseTwoFaMethod
             return false;
         }
 
-        return self::isEnrolled($user);
+        $roles = Helper::getSetting('totp_2fa_roles');
+
+        // No roles named means no restriction, rather than nobody.
+        if (!$roles || !is_array($roles)) {
+            return true;
+        }
+
+        return (bool)array_intersect($roles, array_values($user->roles));
+    }
+
+    /**
+     * Whether this user has to have one before they can use the admin area.
+     *
+     * A role can only be required if it is also allowed, so that a policy can never
+     * demand something the same screen refuses to let the user set up.
+     *
+     * @param $user \WP_User|int
+     * @return bool
+     */
+    public static function isRequiredForUser($user)
+    {
+        $user = self::resolveUser($user);
+
+        if (!$user || !self::isAllowedForUser($user)) {
+            return false;
+        }
+
+        $roles = Helper::getSetting('totp_required_roles');
+
+        if (!$roles || !is_array($roles)) {
+            return false;
+        }
+
+        return (bool)array_intersect($roles, array_values($user->roles));
+    }
+
+    /**
+     * @param $user \WP_User|int
+     * @return \WP_User|false
+     */
+    private static function resolveUser($user)
+    {
+        if ($user instanceof \WP_User) {
+            return $user;
+        }
+
+        if (!is_numeric($user)) {
+            return false;
+        }
+
+        $user = get_user_by('ID', (int)$user);
+
+        return $user instanceof \WP_User ? $user : false;
     }
 
     /**
