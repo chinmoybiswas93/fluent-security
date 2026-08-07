@@ -171,7 +171,8 @@
                 transition: width .1s ease;
             }
 
-            &.router-link-exact-active {
+            &.router-link-exact-active,
+            &.is-current {
                 @apply bg-transparent font-medium text-system-dark;
 
                 &::before {
@@ -217,6 +218,11 @@
 
 .fls_settings_content {
     @apply p-7;
+}
+
+/* Keeps a scrolled-to section clear of the sticky header above it. */
+.fls_section {
+    scroll-margin-top: 120px;
 }
 
 /* ---------------------------------------------------------- setting card */
@@ -329,5 +335,21 @@
     .fls_row .fls_row_label {
         flex: 0 0 100%;
         max-width: 100%;
+    }
+}
+
+/* The two-factor method cards and the proxy panel sit inside a section card now,
+   so they no longer draw a heading or a panel background of their own. */
+.fls_2fa_methods,
+.fls_proxy {
+    padding-top: 16px;
+    padding-bottom: 16px;
+}
+
+.fls_proxy_headline {
+    margin: 0 0 8px !important;
+
+    .fls_proxy_state {
+        margin-left: 0;
     }
 }

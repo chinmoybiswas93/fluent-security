@@ -1,12 +1,37 @@
 <script type="text/babel">
 import settingsPage from '../settingsPage';
 import SettingsHeader from '../_SettingsHeader.vue';
-import SettingRow from '../_SettingRow.vue';
+import SettingsSection from '../_SettingsSection.vue';
 
+import CoreSecuritySection from '../Sections/_CoreSecurity.vue';
+import LoginSecuritySection from '../Sections/_LoginSecurity.vue';
+import MagicLoginSection from '../Sections/_MagicLogin.vue';
+import NotificationsSection from '../Sections/_Notifications.vue';
+import AdvancedSection from '../Sections/_Advanced.vue';
+import TwoFaSettings from '../../TwoFa/_TwoFaSettings.vue';
+import ProxySettings from '../../_ProxySettings.vue';
+
+/**
+ * Every setting that lives in the one saved option, on one page.
+ *
+ * They are together because they are saved together - one Save button writes the whole
+ * option - and split into separate routes they would each have had to load and post
+ * the entire thing anyway. The sidebar scrolls between them instead.
+ */
 export default {
     name: 'GeneralSettings',
     mixins: [settingsPage],
-    components: {SettingsHeader, SettingRow},
+    components: {
+        SettingsHeader,
+        SettingsSection,
+        CoreSecuritySection,
+        LoginSecuritySection,
+        MagicLoginSection,
+        NotificationsSection,
+        AdvancedSection,
+        TwoFaSettings,
+        ProxySettings
+    },
     methods: {
         applyRecommended() {
             /*
@@ -45,7 +70,7 @@ export default {
                 proxy_ip_header: this.settings.proxy_ip_header || ''
             };
 
-            this.$notify.success(this.$t('Recommended settings have been applied across all sections. Review and save.'));
+            this.$notify.success(this.$t('Recommended settings have been applied. Review the sections and save.'));
         }
     }
 };
@@ -53,8 +78,8 @@ export default {
 
 <template>
     <div>
-        <SettingsHeader :heading="$t('General')"
-                        :description="$t('Core hardening for the parts of WordPress that are exposed by default.')"
+        <SettingsHeader :heading="$t('Settings')"
+                        :description="$t('Everything saved together, in one place.')"
                         :saving="saving" @save="saveSettings()">
             <template #actions>
                 <el-button size="small" @click="applyRecommended()">
@@ -64,34 +89,45 @@ export default {
         </SettingsHeader>
 
         <div class="fls_settings_content">
-            <el-skeleton v-if="!settings" :animated="true" :rows="6"/>
+            <el-skeleton v-if="!settings" :animated="true" :rows="8"/>
 
-            <div v-else class="fls_card">
-                <div class="fls_card_body">
-                    <SettingRow :label="$t('XML-RPC')"
-                                :description="$t('An old remote publishing interface. Most sites never use it, and it is a standing target for password guessing because one request can carry many attempts.')">
-                        <el-switch v-model="settings.disable_xmlrpc" active-value="yes" inactive-value="no"/>
-                        <p>{{ $t('Recommended: disabled.') }}</p>
-                    </SettingRow>
+            <el-form v-else label-position="top">
+                <SettingsSection id="core" :title="$t('Core Security')"
+                                 :description="$t('The parts of WordPress that are exposed by default.')">
+                    <CoreSecuritySection :settings="settings"/>
+                </SettingsSection>
 
-                    <SettingRow :label="$t('Application passwords')"
-                                :description="$t('Lets external apps sign in over the REST API with their own password. Leave enabled only if something actually connects that way.')">
-                        <el-switch v-model="settings.disable_app_login" active-value="yes" inactive-value="no"/>
-                        <p>{{ $t('Switched on here means application passwords are turned off.') }}</p>
-                    </SettingRow>
+                <SettingsSection id="login_security" :title="$t('Login Security')"
+                                 :description="$t('How many times an address may get a password wrong before it is shut out.')">
+                    <LoginSecuritySection :settings="settings"/>
+                </SettingsSection>
 
-                    <SettingRow :label="$t('Public user listing')"
-                                :description="$t('WordPress will list your usernames over the REST API to anyone who asks. Those names are half of every password guess.')">
-                        <el-switch v-model="settings.disable_users_rest" active-value="yes" inactive-value="no"/>
-                        <p>{{ $t('Recommended: disabled.') }}</p>
-                    </SettingRow>
+                <SettingsSection id="two_fa" :title="$t('Two-Factor Authentication')"
+                                 :description="$t('A second factor is only worth the friction when it proves something the password did not. Each method states what it proves, because that is what decides when it is asked for.')">
+                    <TwoFaSettings :settings="settings" :user_roles="user_roles"/>
+                </SettingsSection>
 
-                    <SettingRow :label="$t('Secure signup form')"
-                                :description="$t('Replaces the default registration form with one that verifies the email address before the account becomes usable.')">
-                        <el-switch v-model="settings.secure_signup_form" active-value="yes" inactive-value="no"/>
-                    </SettingRow>
-                </div>
-            </div>
+                <SettingsSection id="magic_login" :title="$t('Magic Login')"
+                                 :description="$t('Signing in from a link sent to the account address, with no password typed at all.')">
+                    <MagicLoginSection :settings="settings" :user_roles="user_roles"/>
+                </SettingsSection>
+
+                <SettingsSection id="notifications" :title="$t('Notifications')"
+                                 :description="$t('What the plugin emails you about, and where it sends it.')">
+                    <NotificationsSection :settings="settings" :user_roles="user_roles"/>
+                </SettingsSection>
+
+                <SettingsSection id="visitor_ip" :title="$t('Visitor IP')"
+                                 :description="$t('Where a visitor\'s address is read from. The attempt limit counts per address, so this decides whether it counts the right people.')">
+                    <ProxySettings :settings="settings" :detection="proxy_detection"
+                                   :config_locked="proxy_config_locked"/>
+                </SettingsSection>
+
+                <SettingsSection id="advanced" :title="$t('Advanced')"
+                                 :description="$t('Log retention and admin area access.')">
+                    <AdvancedSection :settings="settings" :low_level_roles="low_level_roles"/>
+                </SettingsSection>
+            </el-form>
         </div>
     </div>
 </template>

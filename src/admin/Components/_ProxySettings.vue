@@ -98,11 +98,10 @@ export default {
 </script>
 
 <template>
-    <div class="fls_login_settings">
-        <h3>
-            {{ $t('Visitor IP Detection') }}
+    <div class="fls_proxy">
+        <p class="fls_proxy_headline">
             <span class="fls_proxy_state" :class="'fls_proxy_state_' + status">{{ headline }}</span>
-        </h3>
+        </p>
 
         <p style="margin-bottom: 15px;">{{ summary }}</p>
 

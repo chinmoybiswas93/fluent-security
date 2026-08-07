@@ -3,12 +3,6 @@ import Logs from './Components/Logs.vue';
 
 import SettingsLayout from './Components/Settings/SettingsLayout.vue';
 import GeneralSettings from './Components/Settings/Pages/General.vue';
-import LoginSecuritySettings from './Components/Settings/Pages/LoginSecurity.vue';
-import TwoFactorSettings from './Components/Settings/Pages/TwoFactor.vue';
-import LoginMethodsSettings from './Components/Settings/Pages/LoginMethods.vue';
-import NotificationSettings from './Components/Settings/Pages/Notifications.vue';
-import VisitorIpSettings from './Components/Settings/Pages/VisitorIp.vue';
-import AdvancedSettings from './Components/Settings/Pages/Advanced.vue';
 import EnrolledUsers from './Components/TwoFa/EnrolledUsers.vue';
 
 import AuthShortcodes from './Components/AuthShortcodes.vue';
@@ -31,31 +25,13 @@ const settingsChildren = [
         path: '',
         name: 'settings_general',
         component: GeneralSettings,
-        meta: {title: 'General Settings'}
+        meta: {title: 'Settings'}
     },
     {
-        path: 'login-security',
-        name: 'settings_login_security',
-        component: LoginSecuritySettings,
-        meta: {title: 'Login Security'}
-    },
-    {
-        path: 'two-factor',
-        name: 'settings_two_fa',
-        component: TwoFactorSettings,
-        meta: {title: 'Two-Factor Authentication'}
-    },
-    {
-        path: 'two-factor/enrollment',
+        path: 'two-factor-enrollment',
         name: 'settings_two_fa_enrollment',
         component: EnrolledUsers,
         meta: {title: 'Two-Factor Enrollment'}
-    },
-    {
-        path: 'login-methods',
-        name: 'settings_login_methods',
-        component: LoginMethodsSettings,
-        meta: {title: 'Magic Login'}
     },
     {
         path: 'social-login',
@@ -99,24 +75,6 @@ const settingsChildren = [
         component: EditWpEmail,
         props: true,
         meta: {title: 'Edit Email'}
-    },
-    {
-        path: 'notifications',
-        name: 'settings_notifications',
-        component: NotificationSettings,
-        meta: {title: 'Notifications'}
-    },
-    {
-        path: 'visitor-ip',
-        name: 'settings_proxy',
-        component: VisitorIpSettings,
-        meta: {title: 'Visitor IP Detection'}
-    },
-    {
-        path: 'advanced',
-        name: 'settings_advanced',
-        component: AdvancedSettings,
-        meta: {title: 'Advanced Settings'}
     },
     {
         path: 'remote-auth',

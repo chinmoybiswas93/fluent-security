@@ -55,11 +55,7 @@ export default {
 </script>
 
 <template>
-    <div class="fls_login_settings">
-        <h3>{{ $t('Two-Factor Authentication') }}</h3>
-        <p style="margin-bottom: 20px;">
-            {{ $t('A second factor is only worth the friction when it proves something the password did not. Each method below states what it proves, because that is what decides when it is asked for.') }}
-        </p>
+    <div class="fls_2fa_methods">
 
         <div class="fls_2fa_method" :class="{'fls_2fa_method_on': settings.totp_2fa === 'yes'}">
             <div class="fls_2fa_method_head">
