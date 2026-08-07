@@ -3,6 +3,7 @@
 namespace FluentAuth\App\Hooks\Handlers;
 
 use FluentAuth\App\Helpers\Arr;
+use FluentAuth\App\Services\QrCode;
 use FluentAuth\App\Services\TwoFa\TotpProvider;
 use FluentAuth\App\Services\TwoFa\TotpTwoFaMethod;
 
@@ -151,8 +152,27 @@ class TotpProfileHandler
 
         $uri = TotpProvider::getProvisioningUri($secret, $user->user_login, get_bloginfo('name'));
 
+        /*
+         * Drawn here rather than by a chart service, because the URI contains the shared
+         * secret: handing it to a third party to render would hand over the second
+         * factor along with it.
+         */
+        $qr = QrCode::svg($uri, [
+            'size'  => 200,
+            'label' => __('QR code for setting up your authenticator app', 'fluent-security')
+        ]);
+
         ?>
-        <p><?php esc_html_e('Add this site to an authenticator app, then enter the code it shows to confirm the two are paired.', 'fluent-security'); ?></p>
+        <p><?php esc_html_e('Scan this with an authenticator app, then enter the code it shows to confirm the two are paired.', 'fluent-security'); ?></p>
+
+        <?php if ($qr) : ?>
+            <div style="display:inline-block;padding:10px;background:#fff;border:1px solid #c3c4c7;margin-bottom:16px;">
+                <?php echo $qr; // PHPCS:Ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- built from integers, the label is escaped ?>
+            </div>
+            <p class="description" style="margin-bottom: 16px;">
+                <?php esc_html_e('Cannot scan it? Use the setup key below instead.', 'fluent-security'); ?>
+            </p>
+        <?php endif; ?>
 
         <p style="margin-bottom: 4px;"><label for="fls_totp_secret_display"><strong><?php esc_html_e('Setup key', 'fluent-security'); ?></strong></label></p>
         <input type="text" id="fls_totp_secret_display" class="regular-text code" readonly
