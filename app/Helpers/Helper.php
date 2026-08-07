@@ -10,6 +10,7 @@ class Helper
     private static $resolvedIp = null;
     private static $trustedProxies = null;
     private static $tokenVerifiedLogin = false;
+    private static $satisfiedFactors = null;
 
     public static function resetStatics()
     {
@@ -19,6 +20,40 @@ class Helper
         self::$resolvedIp = null;
         self::$trustedProxies = null;
         self::$tokenVerifiedLogin = false;
+        self::$satisfiedFactors = null;
+        \FluentAuth\App\Services\TwoFa\TwoFaService::resetMethods();
+    }
+
+    /**
+     * Records everything the first step of the login in progress actually proved.
+     *
+     * The second factor is chosen against this set: a method proving something already
+     * in it is skipped, one proving anything else is still required. It is a set rather
+     * than a single value because one step can prove more than one thing - a social
+     * login proves both the provider and, since the account is matched on a provider
+     * verified address, the mailbox behind it.
+     *
+     * @param $factors array of AuthFactor constants
+     * @return void
+     */
+    public static function setSatisfiedFactors($factors)
+    {
+        self::$satisfiedFactors = array_values(array_unique((array)$factors));
+    }
+
+    /**
+     * Defaults to a password, because that is the only route reaching wp_authenticate
+     * without having announced itself.
+     *
+     * @return array
+     */
+    public static function getSatisfiedFactors()
+    {
+        if (self::$satisfiedFactors === null) {
+            return [\FluentAuth\App\Services\TwoFa\AuthFactor::KNOWLEDGE];
+        }
+
+        return self::$satisfiedFactors;
     }
 
     /**

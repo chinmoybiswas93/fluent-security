@@ -199,8 +199,7 @@ class SocialAuthHandler
 
         $existingUser = get_user_by('email', $userData['email']);
         if ($existingUser) {
-            $twoFaHandler = new TwoFaHandler();
-            if ($redirectUrl = $twoFaHandler->sendAndGet2FaConfirmFormUrl($existingUser)) {
+            if ($redirectUrl = AuthService::getSocialTwoFaRedirect($existingUser)) {
                 wp_redirect($redirectUrl);
                 exit();
             }
@@ -277,8 +276,7 @@ class SocialAuthHandler
 
         $existingUser = get_user_by('email', $userData['email']);
         if ($existingUser) {
-            $twoFaHandler = new TwoFaHandler();
-            if ($redirectUrl = $twoFaHandler->sendAndGet2FaConfirmFormUrl($existingUser)) {
+            if ($redirectUrl = AuthService::getSocialTwoFaRedirect($existingUser)) {
                 wp_redirect($redirectUrl);
                 exit();
             }
@@ -352,8 +350,7 @@ class SocialAuthHandler
 
         $existingUser = get_user_by('email', $userData['email']);
         if ($existingUser) {
-            $twoFaHandler = new TwoFaHandler();
-            if ($redirectUrl = $twoFaHandler->sendAndGet2FaConfirmFormUrl($existingUser)) {
+            if ($redirectUrl = AuthService::getSocialTwoFaRedirect($existingUser)) {
                 wp_redirect($redirectUrl);
                 exit();
             }

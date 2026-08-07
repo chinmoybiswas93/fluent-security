@@ -6,6 +6,7 @@ use FluentAuth\App\Helpers\Arr;
 use FluentAuth\App\Helpers\Helper;
 use FluentAuth\App\Services\SmartCodeParser;
 use FluentAuth\App\Services\SystemEmailService;
+use FluentAuth\App\Services\TwoFa\AuthFactor;
 
 class MagicLoginHandler
 {
@@ -454,6 +455,15 @@ class MagicLoginHandler
 
         // The link came from their inbox, so the attempt limit must not block it.
         Helper::setTokenVerifiedLogin(true);
+
+        /*
+         * Redeeming the link is proof of the mailbox, so a second factor that proves the
+         * same mailbox is not asked for again - it would be one factor twice. Anything
+         * proving something else, an authenticator app or a passkey, still is: skipping
+         * those would leave the mailbox as the only thing guarding an account that
+         * explicitly asked for a stronger factor.
+         */
+        Helper::setSatisfiedFactors([AuthFactor::EMAIL]);
 
         add_filter('authenticate', array($this, 'allowProgrammaticLogin'), 10, 3);    // hook in earlier than other callbacks to short-circuit them
         $user = wp_signon(array(

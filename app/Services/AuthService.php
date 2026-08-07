@@ -4,6 +4,8 @@ namespace FluentAuth\App\Services;
 
 use FluentAuth\App\Helpers\Arr;
 use FluentAuth\App\Helpers\Helper;
+use FluentAuth\App\Hooks\Handlers\TwoFaHandler;
+use FluentAuth\App\Services\TwoFa\AuthFactor;
 
 class AuthService
 {
@@ -109,6 +111,52 @@ class AuthService
             $updateData['ID'] = $user->ID;
             wp_update_user($updateData);
         }
+    }
+
+    /**
+     * The second factor a social login still owes, as a URL to send the browser to.
+     *
+     * Signing in through a provider proves the provider account and, because the WP
+     * account is matched on an address the provider has already verified, the mailbox
+     * behind it. An emailed code would be asking again for something just proven, so it
+     * is skipped. A device factor - an authenticator app, a passkey - proves something
+     * the provider never did, so it is still required here: otherwise the provider
+     * account quietly becomes a way around the factor the user turned on.
+     *
+     * @param $user \WP_User
+     * @return string|false
+     */
+    public static function getSocialTwoFaRedirect($user)
+    {
+        Helper::setSatisfiedFactors([AuthFactor::IDP, AuthFactor::EMAIL]);
+
+        $handler = new TwoFaHandler();
+
+        return $handler->sendAndGet2FaConfirmFormUrl($user, 'url', self::getIntentRedirect());
+    }
+
+    /**
+     * The redirect the social flow stashed before handing off to the provider.
+     *
+     * Social login carries its intent in a cookie rather than $_REQUEST, so it has to
+     * be passed to the 2FA challenge explicitly or it is lost across the redirect.
+     *
+     * @return string
+     */
+    private static function getIntentRedirect()
+    {
+        if (empty($_COOKIE['fs_intent_redirect'])) {
+            return '';
+        }
+
+        $redirect = sanitize_url(urldecode(wp_unslash($_COOKIE['fs_intent_redirect'])));
+
+        if (!$redirect || !filter_var($redirect, FILTER_VALIDATE_URL)) {
+            return '';
+        }
+
+        // Must be a URL on this site, or the challenge becomes an open redirect.
+        return Helper::getValidatedRedirectUrl($redirect, '');
     }
 
     public static function makeLogin($user, $provider = '')
