@@ -27,7 +27,14 @@ class TwoFaService
 
         $methods = [];
 
+        /*
+         * An authenticator app comes first deliberately. Where a user has enrolled one
+         * it is the stronger of the two, and it is the one an attacker holding the
+         * mailbox cannot answer - so it should be what they are asked for, not a code
+         * mailed to an address that may already be lost.
+         */
         $registered = apply_filters('fluent_auth/2fa_methods', [
+            new TotpTwoFaMethod(),
             new EmailTwoFaMethod()
         ]);
 
@@ -116,10 +123,12 @@ class TwoFaService
             /*
              * An account under attack is challenged even where the method is switched
              * off for its role - but only with a method that proves something the first
-             * step did not. Someone who arrived by magic link has already shown they
-             * hold the mailbox, which is the very thing the challenge exists to ask for.
+             * step did not, and only one the site can raise for a user who never set it
+             * up. Someone who arrived by magic link has already shown they hold the
+             * mailbox, which is the very thing the challenge exists to ask for; someone
+             * with no authenticator app enrolled cannot be shown its form at all.
              */
-            if ($challengeRequired && $fallback === null) {
+            if ($challengeRequired && $fallback === null && $method->supportsUnenrolledChallenge()) {
                 $fallback = $method;
             }
         }

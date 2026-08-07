@@ -53,6 +53,25 @@ abstract class BaseTwoFaMethod
     }
 
     /**
+     * Whether this method can be forced on a user who has not set it up.
+     *
+     * An account under attack is challenged even where the method is switched off for
+     * its role, but that only works for a method whose proof the site can produce on
+     * demand - a code to the address already on the account. A method resting on
+     * something the user registered in advance cannot: challenging someone with an
+     * authenticator app they never enrolled in presents a form no one alive can answer,
+     * which is a lockout, not a defence.
+     *
+     * Off by default, so a new method has to say it can do this rather than inherit it.
+     *
+     * @return bool
+     */
+    public function supportsUnenrolledChallenge()
+    {
+        return false;
+    }
+
+    /**
      * Builds the proof.
      *
      * Returns `columns` to merge into the pending login row (a hashed code, a WebAuthn

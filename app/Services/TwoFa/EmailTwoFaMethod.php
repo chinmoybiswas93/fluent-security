@@ -39,6 +39,15 @@ class EmailTwoFaMethod extends BaseTwoFaMethod
         return __('Email Code', 'fluent-security');
     }
 
+    /**
+     * The address is already on the account, so a code can be sent to a user who never
+     * turned this on. That is what makes it the fallback for an account under attack.
+     */
+    public function supportsUnenrolledChallenge()
+    {
+        return true;
+    }
+
     public function getSatisfiedFactor()
     {
         return AuthFactor::EMAIL;
