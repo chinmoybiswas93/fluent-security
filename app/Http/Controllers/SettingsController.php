@@ -5,6 +5,7 @@ namespace FluentAuth\App\Http\Controllers;
 use FluentAuth\App\Helpers\Arr;
 use FluentAuth\App\Helpers\Helper;
 use FluentAuth\App\Hooks\Handlers\ServerModeHandler;
+use FluentAuth\App\Services\ProxyDetection;
 
 class SettingsController
 {
@@ -15,7 +16,13 @@ class SettingsController
             'user_roles'          => Helper::getUserRoles(),
             'low_level_roles'     => Helper::getLowLevelRoles(),
             // wp-config.php wins over the saved settings, so say so in the UI.
-            'proxy_config_locked' => defined('FLUENT_AUTH_TRUSTED_PROXIES') && FLUENT_AUTH_TRUSTED_PROXIES
+            'proxy_config_locked' => defined('FLUENT_AUTH_TRUSTED_PROXIES') && FLUENT_AUTH_TRUSTED_PROXIES,
+            /*
+             * Read from the administrator's own request, so the screen can stay out of
+             * the way on the sites that will never need it and speak up on the ones
+             * where it is already going wrong.
+             */
+            'proxy_detection'     => ProxyDetection::detect()
         ];
     }
 
