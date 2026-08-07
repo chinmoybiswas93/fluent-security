@@ -1,0 +1,333 @@
+/*
+ * The application shell: top bar, settings sidebar, settings header and form rows.
+ *
+ * Structure and measurements follow FluentCart so the two plugins feel like one
+ * product. The positioning is not copied literally - FluentCart pins its sidebar to a
+ * fixed offset that matches its own header - this uses a flex row and a sticky column,
+ * which survives the plugin being rendered inside whatever wp-admin gives it.
+ */
+
+/* ------------------------------------------------------------------ app bar */
+
+.fls_app_bar {
+    @apply flex items-center gap-6 bg-white px-6 border-0 border-b border-solid border-gray-divider;
+
+    min-height: 56px;
+    margin-left: -20px;
+    margin-right: -20px;
+    position: sticky;
+    top: 32px;
+    z-index: 99;
+    transition: box-shadow .2s ease;
+
+    &.is-scrolled {
+        box-shadow: 0 1px 8px rgba(16, 24, 40, .06);
+    }
+
+    .fls_app_logo {
+        @apply flex items-center flex-shrink-0;
+
+        img {
+            max-width: 132px;
+            height: auto;
+            display: block;
+        }
+    }
+
+    .fls_app_nav {
+        @apply flex items-center gap-1 m-0 p-0 list-none flex-1;
+
+        li {
+            @apply m-0;
+        }
+
+        a {
+            @apply flex items-center rounded px-3 py-2 text-sm font-medium no-underline text-system-mid;
+
+            transition: background-color .15s ease, color .15s ease;
+
+            &:hover {
+                @apply bg-gray-25 text-system-dark;
+            }
+
+            &.router-link-active {
+                @apply bg-primary-25 text-system-dark;
+            }
+        }
+    }
+
+    .fls_app_bar_actions {
+        @apply flex items-center gap-2 flex-shrink-0;
+    }
+
+    .fls_app_bar_toggle {
+        display: none;
+    }
+}
+
+/* ------------------------------------------------------- settings shell */
+
+.fls_settings {
+    @apply flex items-start relative;
+
+    margin-left: -20px;
+    margin-right: -20px;
+    min-height: calc(100vh - 120px);
+}
+
+.fls_settings_nav {
+    @apply bg-white flex-shrink-0 border-0 border-r border-solid border-gray-divider;
+
+    width: 260px;
+    position: sticky;
+    top: 88px;
+    align-self: stretch;
+    min-height: calc(100vh - 120px);
+
+    .fls_settings_nav_title {
+        @apply flex items-center gap-2 text-base font-medium text-system-dark px-5 border-0 border-b border-solid border-gray-divider;
+
+        min-height: 52px;
+        margin: 0;
+    }
+
+    ul {
+        @apply list-none m-0 p-4;
+    }
+
+    li {
+        @apply mb-1.5 last:mb-0;
+    }
+
+    a {
+        @apply relative flex items-center gap-2.5 rounded px-2.5 py-2 text-sm font-medium no-underline text-system-mid;
+
+        min-height: 36px;
+        white-space: nowrap;
+        transition: background-color .15s ease, color .15s ease;
+
+        &:hover {
+            @apply bg-primary-25 text-system-dark;
+        }
+
+        .fls_nav_icon {
+            @apply flex-shrink-0 opacity-70;
+
+            width: 18px;
+            height: 18px;
+        }
+
+        .fls_nav_chevron {
+            @apply absolute opacity-0;
+
+            right: 16px;
+            top: 50%;
+            width: 10px;
+            height: 10px;
+            transform: translateY(-50%);
+            transition: opacity .2s ease, right .2s ease;
+        }
+    }
+
+    .is-active > a {
+        @apply bg-primary-25 text-system-dark;
+
+        .fls_nav_chevron {
+            @apply opacity-100;
+
+            right: 12px;
+        }
+    }
+
+    /* Children hang off a hairline, the way a tree reads. */
+    .fls_settings_subnav {
+        @apply relative m-0 p-0 list-none;
+
+        padding-left: 26px;
+        margin: 4px 0;
+
+        &::before {
+            content: '';
+            @apply absolute bg-gray-100 rounded;
+
+            left: 18px;
+            top: 50%;
+            width: 2px;
+            height: calc(100% - 16px);
+            transform: translateY(-50%);
+        }
+
+        a {
+            @apply bg-transparent text-system-mid;
+
+            &::before {
+                content: '';
+                @apply absolute bg-primary-500 rounded;
+
+                left: -8px;
+                top: 8px;
+                width: 0;
+                height: calc(100% - 16px);
+                transition: width .1s ease;
+            }
+
+            &.router-link-exact-active {
+                @apply bg-transparent font-medium text-system-dark;
+
+                &::before {
+                    width: 2px;
+                }
+            }
+        }
+    }
+}
+
+.fls_settings_body {
+    @apply flex-1;
+
+    min-width: 0;
+}
+
+/* ------------------------------------------------------ settings header */
+
+.fls_settings_header {
+    @apply flex items-center justify-between gap-4 bg-white px-7 border-0 border-b border-solid border-gray-divider;
+
+    min-height: 52px;
+    position: sticky;
+    top: 88px;
+    z-index: 9;
+
+    h1 {
+        @apply text-base font-medium text-system-dark m-0;
+
+        line-height: 24px;
+    }
+
+    .fls_settings_header_desc {
+        @apply text-xs text-system-light m-0;
+
+        margin-top: 2px;
+    }
+
+    .fls_settings_header_actions {
+        @apply flex items-center gap-2 flex-shrink-0;
+    }
+}
+
+.fls_settings_content {
+    @apply p-7;
+}
+
+/* ---------------------------------------------------------- setting card */
+
+.fls_card {
+    @apply bg-white rounded border border-solid border-gray-divider;
+
+    margin-bottom: 20px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+
+    .fls_card_head {
+        @apply px-6 border-0 border-b border-solid border-gray-divider;
+
+        padding-top: 16px;
+        padding-bottom: 16px;
+
+        h2 {
+            @apply text-sm font-medium text-system-dark m-0;
+        }
+
+        p {
+            @apply text-xs text-system-light m-0;
+
+            margin-top: 4px;
+        }
+    }
+
+    .fls_card_body {
+        @apply px-6;
+
+        padding-top: 4px;
+        padding-bottom: 4px;
+    }
+}
+
+/* ----------------------------------------------------------- setting row */
+
+/*
+ * Label and explanation on the left, the control on the right - the shape that lets
+ * someone scan a column of labels without reading every description.
+ */
+.fls_row {
+    @apply flex flex-wrap gap-6 border-0 border-b border-solid border-gray-divider;
+
+    padding-top: 20px;
+    padding-bottom: 20px;
+
+    &:last-child {
+        @apply border-b-0;
+    }
+
+    .fls_row_label {
+        flex: 0 0 300px;
+        max-width: 300px;
+
+        label,
+        .fls_row_title {
+            @apply block text-sm font-medium text-system-dark m-0;
+        }
+
+        p {
+            @apply text-xs text-system-light m-0;
+
+            margin-top: 4px;
+            line-height: 1.5;
+        }
+    }
+
+    .fls_row_control {
+        @apply flex-1;
+
+        min-width: 260px;
+
+        > p {
+            @apply text-xs text-system-light;
+
+            margin: 6px 0 0;
+        }
+
+        .el-form-item {
+            margin-bottom: 0;
+        }
+    }
+
+    &.fls_row_stacked {
+        @apply block;
+
+        .fls_row_label {
+            max-width: none;
+            margin-bottom: 8px;
+        }
+    }
+}
+
+@media (max-width: 960px) {
+    .fls_settings {
+        @apply block;
+    }
+
+    .fls_settings_nav {
+        width: 100%;
+        position: static;
+        min-height: 0;
+        @apply border-r-0 border-b;
+    }
+
+    .fls_row .fls_row_label {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}

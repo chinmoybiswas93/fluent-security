@@ -1,10 +1,11 @@
 <script type="text/babel">
-import {Search, ArrowLeftBold} from '@element-plus/icons-vue';
+import {Search} from '@element-plus/icons-vue';
+import SettingsHeader from '../Settings/_SettingsHeader.vue';
 
 export default {
     name: 'EnrolledUsers',
     components: {
-        ArrowLeftBold
+        SettingsHeader
     },
     data() {
         return {
@@ -103,36 +104,28 @@ export default {
 </script>
 
 <template>
-    <div class="box_wrapper">
-        <div class="box dashboard_box box_narrow">
-        <div class="box_header" style="padding: 15px;font-size: 16px;">
-            <div style="padding-top: 5px;" class="box_head">
-                <el-button @click="$router.push({name: 'settings'})" size="small" style="margin-right: 10px;">
-                    <el-icon>
-                        <ArrowLeftBold/>
-                    </el-icon>
-                    <span style="margin-left: 4px;">{{ $t('Settings') }}</span>
-                </el-button>
-                {{ $t('Two-Factor Enrollment') }}
-                <span class="fls_2fa_count">
-                    {{ $t('%1s of %2s users have an authenticator app', summary.enrolled, summary.total_users) }}
-                </span>
-            </div>
-            <div style="display: flex;" class="box_actions">
-                <el-radio-group @change="applyFilter()" v-model="filter">
-                    <el-radio-button value="all" size="default" :label="$t('All')"/>
-                    <el-radio-button value="enrolled" size="default" :label="$t('Enrolled')"/>
-                    <el-radio-button value="not_enrolled" size="default" :label="$t('Not enrolled')"/>
+    <div>
+        <SettingsHeader :heading="$t('Two-Factor Enrollment')"
+                        :description="$t('%1s of %2s users have an authenticator app', summary.enrolled, summary.total_users)"
+                        :show-save="false">
+            <template #actions>
+                <el-radio-group @change="applyFilter()" v-model="filter" size="small">
+                    <el-radio-button value="all" :label="$t('All')"/>
+                    <el-radio-button value="enrolled" :label="$t('Enrolled')"/>
+                    <el-radio-button value="not_enrolled" :label="$t('Not enrolled')"/>
                 </el-radio-group>
-                <el-input clearable @keyup.native.enter="applyFilter()" style="width: 200px; margin-left: 10px;"
+                <el-input clearable @keyup.native.enter="applyFilter()" style="width: 200px;"
                           size="small" type="text" v-model="search" :placeholder="$t('Search users')">
                     <template #append>
                         <el-button @click="applyFilter()" :icon="SearchIcon"/>
                     </template>
                 </el-input>
-            </div>
-        </div>
-        <div class="box_body">
+            </template>
+        </SettingsHeader>
+
+        <div class="fls_settings_content">
+            <div class="fls_card">
+                <div class="fls_card_body">
             <el-table v-loading="loading" :data="users" style="width: 100%">
                 <el-table-column :label="$t('User')" min-width="200">
                     <template #default="scope">
@@ -206,7 +199,8 @@ export default {
                                :total="pagination.total"
                                @current-change="changePage"/>
             </div>
-        </div>
+                </div>
+            </div>
         </div>
     </div>
 </template>

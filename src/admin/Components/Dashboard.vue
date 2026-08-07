@@ -27,7 +27,7 @@
                         <div class="box_header" style="padding: 10px 15px;font-weight: normal; font-size: 16px;">
                             {{ $t('Settings Overview') }}
                             <div class="box_actions">
-                                <span @click="$router.push({ name: 'settings' })" style="cursor: pointer"
+                                <span @click="$router.push({ name: 'settings_general' })" style="cursor: pointer"
                                       :title="$t('Go to Settings')" class="dashicons dashicons-admin-settings"></span>
                             </div>
                         </div>

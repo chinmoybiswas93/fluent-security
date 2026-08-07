@@ -17,7 +17,7 @@
                 </el-form>
                 
                 <div v-if="settings.status == 'yes'" style="margin-top: 20px;">
-                    <el-button @click="$router.push({name: 'auth_customizer'})" type="primary">
+                    <el-button @click="$router.push({name: 'settings_auth_customizer'})" type="primary">
                         {{ $t('Open Login/Signup Page Customizer') }}
                     </el-button>
                 </div>

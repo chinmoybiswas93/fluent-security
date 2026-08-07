@@ -105,7 +105,7 @@ export default {
                 </el-alert>
 
                 <p class="fls_2fa_link">
-                    <router-link :to="{name: 'two_fa_enrollment'}">
+                    <router-link :to="{name: 'settings_two_fa_enrollment'}">
                         {{ $t('See who has set one up') }} &rarr;
                     </router-link>
                     <span>

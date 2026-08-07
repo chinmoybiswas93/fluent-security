@@ -9,7 +9,7 @@
                     </p>
                 </div>
                 <div style="display: flex;" class="box_actions">
-                    <el-button @click="$router.push({name: 'template_settings'})" type="primary">
+                    <el-button @click="$router.push({name: 'settings_email_template'})" type="primary">
                         {{$t('Template Settings')}}
                     </el-button>
                 </div>
@@ -37,7 +37,7 @@
                     <el-table-column width="100" :label="$t('Actions')">
                         <template #default="scope">
                             <el-button size="small" type="primary"
-                                       @click="$router.push({ name: 'edit_wp_email', params: { email_id: scope.row.name } })">
+                                       @click="$router.push({ name: 'settings_edit_email', params: { email_id: scope.row.name } })">
                                 {{ $t('Edit') }}
                             </el-button>
                         </template>
@@ -65,7 +65,7 @@
                     </el-table-column>
                     <el-table-column width="100" :label="$t('Actions')">
                         <template #default="scope">
-                            <el-button size="small" type="primary" @click="$router.push({ name: 'edit_wp_email', params: { email_id: scope.row.name } })">
+                            <el-button size="small" type="primary" @click="$router.push({ name: 'settings_edit_email', params: { email_id: scope.row.name } })">
                                 {{ $t('Edit') }}
                             </el-button>
                         </template>

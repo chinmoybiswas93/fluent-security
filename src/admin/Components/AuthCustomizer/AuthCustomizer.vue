@@ -3,7 +3,7 @@
         <el-container>
             <el-header class="fcom_full_editor_header_wrap">
                 <div class="fcom_full_editor_header">
-                    <el-button @click="$router.push({name: 'auth_shortcodes'})" class="fcom_back_header">
+                    <el-button @click="$router.push({name: 'settings_auth_forms'})" class="fcom_back_header">
                         <el-icon>
                             <ArrowLeftBold />
                         </el-icon>
