@@ -179,4 +179,80 @@ class SettingsControllerTest extends BaseTestCase
         $this->assertArrayHasKey('login_try_limit', $result['settings']);
         $this->assertArrayHasKey('login_try_timing', $result['settings']);
     }
+
+    // ------------------------------- keeping roles out of wp-admin
+
+    /*
+     * The screen offers one setting for this - the list of roles. The `disable_admin_bar`
+     * switch it used to also offer is derived from that list now, because the two saying
+     * different things was a state with no meaning: both handlers return early on an
+     * empty list, so "switched on, nobody chosen" already did nothing.
+     */
+    private function saveWithBarRoles($roles, $switch = null)
+    {
+        $payload = [
+            'login_try_limit'   => 5,
+            'login_try_timing'  => 30,
+            'email2fa'          => 'no',
+            'email2fa_roles'    => [],
+            'disable_bar_roles' => $roles,
+        ];
+
+        if ($switch !== null) {
+            $payload['disable_admin_bar'] = $switch;
+        }
+
+        $request = new \WP_REST_Request();
+        $request->set_param('settings', $payload);
+
+        return SettingsController::updateSettings($request);
+    }
+
+    public function testChoosingRolesTurnsTheRestrictionOn()
+    {
+        $result = $this->saveWithBarRoles(['subscriber']);
+
+        $this->assertEquals('yes', $result['settings']['disable_admin_bar']);
+        $this->assertEquals(['subscriber'], $result['settings']['disable_bar_roles']);
+    }
+
+    public function testClearingTheRolesTurnsItOff()
+    {
+        $result = $this->saveWithBarRoles([]);
+
+        $this->assertEquals('no', $result['settings']['disable_admin_bar']);
+    }
+
+    public function testTheSwitchCannotContradictTheRoleList()
+    {
+        // Claiming it is on with nobody chosen never did anything; it is stored as off.
+        $this->assertEquals('no', $this->saveWithBarRoles([], 'yes')['settings']['disable_admin_bar']);
+
+        // And the reverse: roles chosen means on, whatever an older client sends.
+        $this->assertEquals('yes', $this->saveWithBarRoles(['subscriber'], 'no')['settings']['disable_admin_bar']);
+    }
+
+    /*
+     * An emptied multi-select posts an empty string, not an empty array. Every reader
+     * happens to test the value for truth first, so nothing breaks on it today - but a
+     * list setting should hold a list.
+     */
+    public function testAnEmptiedRoleListIsStoredAsAnArray()
+    {
+        $request = new \WP_REST_Request();
+        $request->set_param('settings', [
+            'login_try_limit'         => 5,
+            'login_try_timing'        => 30,
+            'email2fa'                => 'no',
+            'email2fa_roles'          => '',
+            'disable_bar_roles'       => '',
+            'notification_user_roles' => '',
+        ]);
+
+        $settings = SettingsController::updateSettings($request)['settings'];
+
+        $this->assertSame([], $settings['disable_bar_roles']);
+        $this->assertSame([], $settings['email2fa_roles']);
+        $this->assertSame([], $settings['notification_user_roles']);
+    }
 }

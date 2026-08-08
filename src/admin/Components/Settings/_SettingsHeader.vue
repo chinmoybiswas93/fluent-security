@@ -38,18 +38,21 @@ export default {
 
 <template>
     <div class="fls_settings_header">
-        <div>
-            <h1>{{ heading }}</h1>
-            <p v-if="description" class="fls_settings_header_desc">{{ description }}</p>
-        </div>
+        <!-- Capped to the same width as the cards below, so Save sits over their edge. -->
+        <div class="fls_settings_header_inner">
+            <div>
+                <h1>{{ heading }}</h1>
+                <p v-if="description" class="fls_settings_header_desc">{{ description }}</p>
+            </div>
 
-        <div class="fls_settings_header_actions">
-            <slot name="actions"/>
+            <div class="fls_settings_header_actions">
+                <slot name="actions"/>
 
-            <el-button v-if="showSave" type="primary" size="small" :loading="saving"
-                       :disabled="disabled" @click="$emit('save')">
-                {{ saveText || $t('Save') }}
-            </el-button>
+                <el-button v-if="showSave" type="primary" size="small" :loading="saving"
+                           :disabled="disabled" @click="$emit('save')">
+                    {{ saveText || $t('Save') }}
+                </el-button>
+            </div>
         </div>
     </div>
 </template>

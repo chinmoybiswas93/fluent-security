@@ -39,6 +39,9 @@ body.toplevel_page_fluent-auth {
  * Scoped to the app root, so nothing outside it changes.
  */
 #fluent_auth_app {
+    /* How wide the settings column is allowed to get, cards and header alike. */
+    --fls-content-width: 1040px;
+
     &,
     *,
     *::before,
@@ -299,7 +302,7 @@ body.toplevel_page_fluent-auth {
 /* ------------------------------------------------------ settings header */
 
 .fls_settings_header {
-    @apply flex items-center justify-between gap-4 bg-white px-7 border-0 border-b border-solid border-gray-divider;
+    @apply flex items-center bg-white px-7 border-0 border-b border-solid border-gray-divider;
 
     min-height: 52px;
 
@@ -323,10 +326,27 @@ body.toplevel_page_fluent-auth {
     .fls_settings_header_actions {
         @apply flex items-center gap-2 flex-shrink-0;
     }
+
+    /*
+     * The bar itself spans the pane so its background and rule do; only its contents are
+     * capped, which keeps Save directly above the right edge of the cards it saves.
+     */
+    .fls_settings_header_inner {
+        @apply flex items-center justify-between gap-4 w-full;
+
+        max-width: calc(var(--fls-content-width) - 56px);
+    }
 }
 
+/*
+ * A settings form does not get better for being wider - the text inside it is capped
+ * well before this, so past a point the cards only add empty space to the right of their
+ * own content. FluentCart leaves this uncapped and grows to the viewport; this does not.
+ */
 .fls_settings_content {
     @apply p-7;
+
+    max-width: var(--fls-content-width);
 }
 
 /*

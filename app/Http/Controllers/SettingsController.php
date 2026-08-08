@@ -68,6 +68,37 @@ class SettingsController
             }
         }
 
+        /*
+         * Every one of these is a list of roles, and an emptied multi-select posts an
+         * empty string rather than an empty array. Nothing breaks on it today only
+         * because each reader happens to test the value for truth before using it - and
+         * `array_intersect('', ...)` is a TypeError waiting for the first one that does
+         * not. Stored as the arrays they are declared to be.
+         */
+        $roleLists = [
+            'notification_user_roles',
+            'magic_restricted_roles',
+            'email2fa_roles',
+            'totp_2fa_roles',
+            'totp_required_roles',
+            'disable_bar_roles'
+        ];
+
+        foreach ($roleLists as $listKey) {
+            if (array_key_exists($listKey, $settings)) {
+                $settings[$listKey] = array_values(array_filter((array)$settings[$listKey]));
+            }
+        }
+
+        /*
+         * A switch and a role list saying the same thing, where one combination - on,
+         * with nobody chosen - already did nothing, because both handlers return early
+         * on an empty list. The screen now offers only the list, so the switch is
+         * derived from it and the two can no longer disagree. It is still stored,
+         * because the handlers and anything filtering them read it by name.
+         */
+        $settings['disable_admin_bar'] = empty($settings['disable_bar_roles']) ? 'no' : 'yes';
+
         $errors = [];
 
         // Always required now: the attempt limit is no longer something that can be

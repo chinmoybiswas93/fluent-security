@@ -63,7 +63,7 @@ export default {
                  * "recommended settings" should decide for an administrator.
                  */
                 totp_required_roles: this.settings.totp_required_roles || [],
-                disable_admin_bar: 'yes',
+                // disable_admin_bar is derived from this list on save, so it is not set here.
                 disable_bar_roles: ['subscriber'],
                 // Server topology, not a preference - never overwrite it with a default.
                 trusted_proxies: this.settings.trusted_proxies || '',
