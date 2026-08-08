@@ -1,11 +1,13 @@
 <script type="text/babel">
 import {Search} from '@element-plus/icons-vue';
 import SettingsHeader from '../Settings/_SettingsHeader.vue';
+import SettingsCard from '../Settings/_SettingsCard.vue';
 
 export default {
     name: 'EnrolledUsers',
     components: {
-        SettingsHeader
+        SettingsHeader,
+        SettingsCard
     },
     data() {
         return {
@@ -124,9 +126,8 @@ export default {
         </SettingsHeader>
 
         <div class="fls_settings_content">
-            <div class="fls_card">
-                <div class="fls_card_body">
-            <el-table v-loading="loading" :data="users" style="width: 100%">
+            <SettingsCard>
+                <el-table v-loading="loading" :data="users" class="fls_table" style="width: 100%">
                 <el-table-column :label="$t('User')" min-width="200">
                     <template #default="scope">
                         <strong>{{ scope.row.display_name }}</strong>
@@ -190,17 +191,16 @@ export default {
                 </template>
             </el-table>
 
-            <div style="margin-top: 15px; text-align: right;">
-                <el-pagination :background="false"
-                               layout="total, prev, pager, next"
-                               :hide-on-single-page="true"
-                               :current-page="pagination.current_page"
-                               :page-size="pagination.per_page"
-                               :total="pagination.total"
-                               @current-change="changePage"/>
-            </div>
+                <div class="fls_pager">
+                    <el-pagination :background="false"
+                                   layout="total, prev, pager, next"
+                                   :hide-on-single-page="true"
+                                   :current-page="pagination.current_page"
+                                   :page-size="pagination.per_page"
+                                   :total="pagination.total"
+                                   @current-change="changePage"/>
                 </div>
-            </div>
+            </SettingsCard>
         </div>
     </div>
 </template>

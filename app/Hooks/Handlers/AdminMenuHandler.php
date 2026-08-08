@@ -144,6 +144,8 @@ class AdminMenuHandler
             ],
             'auth_settings'   => Helper::getAuthSettings(),
             'asset_url'       => FLUENT_AUTH_PLUGIN_URL . 'dist/',
+            // Used as the example in the redirect URL fields, so the example is real.
+            'site_url'        => site_url('/'),
             'me'              => [
                 'id'        => $currentUser->ID,
                 'full_name' => $fullName,

@@ -1,129 +1,13 @@
-<template>
-    <div class="box_wrapper">
-        <div class="box dashboard_box box_narrow">
-            <div class="box_header" style="padding: 15px;font-size: 16px;">
-                <div style="padding-top: 5px;" class="box_head">
-                    {{ $t('Customize Your Email Template Design') }}
-                </div>
-                <div style="display: flex;" class="box_actions">
-                    <el-button @click="saveSettings" type="primary">{{ $t('Save Settings') }}</el-button>
-                </div>
-            </div>
-            <div v-loading="loading" class="box_body">
-                <template v-if="settings">
-                    <el-form v-model="settings" label-position="top">
-                        <el-row :gutter="20">
-                            <el-col :md="8" :sm="8" :xs="24">
-                                <el-form-item :label="$t('Body Background Color')">
-                                    <el-color-picker @active-change="(color) => { settings.body_bg = color; }"
-                                                     v-model="settings.body_bg" :show-alpha="false"></el-color-picker>
-                                </el-form-item>
-                            </el-col>
-                            <el-col :md="8" :sm="8" :xs="24">
-                                <el-form-item :label="$t('Content Background Color')">
-                                    <el-color-picker @active-change="(color) => { settings.content_bg = color; }"
-                                                     v-model="settings.content_bg"
-                                                     :show-alpha="false"></el-color-picker>
-                                </el-form-item>
-                            </el-col>
-                            <el-col :md="8" :sm="8" :xs="24">
-                                <el-form-item :label="$t('Content Text Color')">
-                                    <el-color-picker @active-change="(color) => { settings.content_color = color; }"
-                                                     v-model="settings.content_color"
-                                                     :show-alpha="false"></el-color-picker>
-                                </el-form-item>
-                            </el-col>
-                        </el-row>
-                        <el-row :gutter="20">
-                            <el-col :md="8" :sm="8" :xs="24">
-                                <el-form-item :label="$t('Highlight Background')">
-                                    <el-color-picker @active-change="(color) => { settings.highlight_bg = color; }"
-                                                     v-model="settings.highlight_bg"
-                                                     :show-alpha="false"></el-color-picker>
-                                </el-form-item>
-                            </el-col>
-                            <el-col :md="8" :sm="8" :xs="24">
-                                <el-form-item :label="$t('Highlight Text Color')">
-                                    <el-color-picker @active-change="(color) => { settings.highlight_color = color; }"
-                                                     v-model="settings.highlight_color"
-                                                     :show-alpha="false"></el-color-picker>
-                                </el-form-item>
-                            </el-col>
-                            <el-col :md="8" :sm="8" :xs="24">
-                                <el-form-item :label="$t('Footer Text Color')">
-                                    <el-color-picker
-                                        @active-change="(color) => { settings.footer_content_color = color; }"
-                                        v-model="settings.footer_content_color" :show-alpha="false"></el-color-picker>
-                                </el-form-item>
-                            </el-col>
-                        </el-row>
-                        <h3>
-                            <span style="color: #999;">{{ $t('Preview') }}</span>
-                            <el-button type="info" style="margin-left: 10px;" size="small"
-                                       @click="showingPreview = !showingPreview">
-                                <span v-if="!showingPreview">{{ $t('Show Preview') }}</span>
-                                <span v-else>{{ $t('Hide Preview') }}</span>
-                            </el-button>
-                            <el-button @click="setDefaultColors()" style="float: right;" size="small">
-                                {{$t('Set Default')}}
-                            </el-button>
-                        </h3>
-                        <emailbody-container v-if="defaultContent && showingPreview" :style_config="settings"
-                                             :content="defaultContent"/>
-
-                        <el-form-item style="margin-top: 30px;" :label="$t('Footer Text')">
-                            <WPEditor :height="80" v-model="settings.footer_text"/>
-                        </el-form-item>
-
-                        <el-row :gutter="20">
-                            <el-col :md="12" :sm="12" :xs="24">
-                                <el-form-item :label="$t('Send from email (optional)')">
-                                    <el-input v-model="settings.from_email"
-                                              :placeholder="$t('Enter email address')"></el-input>
-                                </el-form-item>
-                            </el-col>
-                            <el-col :md="12" :sm="12" :xs="24">
-                                <el-form-item :label="$t('Send from name (optional)')">
-                                    <el-input type="text" v-model="settings.from_name"
-                                              :placeholder="$t('Enter from name')"></el-input>
-                                </el-form-item>
-                            </el-col>
-                        </el-row>
-                        <el-row :gutter="20">
-                            <el-col :md="12" :sm="12" :xs="24">
-                                <el-form-item :label="$t('Reply to email (optional)')">
-                                    <el-input v-model="settings.reply_to_email"
-                                              :placeholder="$t('Enter reply email address')"></el-input>
-                                </el-form-item>
-                            </el-col>
-                            <el-col :md="12" :sm="12" :xs="24">
-                                <el-form-item :label="$t('Reply to name (optional)')">
-                                    <el-input type="text" v-model="settings.reply_to_name"
-                                              :placeholder="$t('Enter reply to name')"></el-input>
-                                </el-form-item>
-                            </el-col>
-                        </el-row>
-
-                        <el-form-item style="margin-top: 30px; text-align: right;">
-                            <el-button @click="saveSettings" type="primary">{{ $t('Save Settings') }}</el-button>
-                        </el-form-item>
-                    </el-form>
-                </template>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script type="text/babel">
 import EmailbodyContainer from "./EmailbodyContainer.vue";
 import WPEditor from "./_wp_editor.vue";
+import SettingsHeader from '../Settings/_SettingsHeader.vue';
+import SettingsCard from '../Settings/_SettingsCard.vue';
+import SettingRow from '../Settings/_SettingRow.vue';
 
 export default {
     name: 'TemplateSettings',
-    components: {
-        WPEditor,
-        EmailbodyContainer
-    },
+    components: {WPEditor, EmailbodyContainer, SettingsHeader, SettingsCard, SettingRow},
     data() {
         return {
             settings: null,
@@ -131,12 +15,26 @@ export default {
             loading: false,
             saving: false,
             showingPreview: true,
-            defaultColors: {}
+            defaultColors: {},
+            /*
+             * Declared once rather than repeated as six near-identical colour fields.
+             * The @active-change handler is what makes the preview move while you are
+             * still dragging in the picker, before the value is committed.
+             */
+            colors: [
+                {key: 'body_bg', label: 'Page background', description: 'Behind the email itself.'},
+                {key: 'content_bg', label: 'Content background', description: 'The card the message sits on.'},
+                {key: 'content_color', label: 'Text', description: 'Body copy.'},
+                {key: 'highlight_bg', label: 'Button background', description: 'Behind a call to action.'},
+                {key: 'highlight_color', label: 'Button text', description: 'On top of it.'},
+                {key: 'footer_content_color', label: 'Footer text', description: 'The small print at the bottom.'}
+            ]
         }
     },
     methods: {
         fetchSettings() {
             this.loading = true;
+
             this.$get('wp-default-emails/template-settings')
                 .then(response => {
                     this.settings = response.settings;
@@ -152,9 +50,8 @@ export default {
         },
         saveSettings() {
             this.saving = true;
-            this.$post('wp-default-emails/save-template-settings', {
-                settings: this.settings,
-            })
+
+            this.$post('wp-default-emails/save-template-settings', {settings: this.settings})
                 .then(response => {
                     this.$notify.success(response.message);
                 })
@@ -178,3 +75,82 @@ export default {
     }
 }
 </script>
+
+<template>
+    <div>
+        <SettingsHeader :heading="$t('Email Template Design')"
+                        :description="$t('How every system email looks, and who it comes from.')"
+                        :saving="saving" @save="saveSettings()">
+            <template #actions>
+                <el-button size="small" @click="$router.push({name: 'settings_emails'})">
+                    {{ $t('Back to emails') }}
+                </el-button>
+            </template>
+        </SettingsHeader>
+
+        <div class="fls_settings_content" v-loading="loading">
+            <el-skeleton v-if="!settings" :animated="true" :rows="6"/>
+
+            <el-form v-else label-position="top">
+                <SettingsCard :title="$t('Colours')"
+                              :description="$t('Applied to every system email at once.')">
+                    <template #actions>
+                        <el-button size="small" @click="setDefaultColors()">{{ $t('Reset') }}</el-button>
+                    </template>
+
+                    <SettingRow v-for="color in colors" :key="color.key"
+                                :label="$t(color.label)" :description="$t(color.description)">
+                        <el-color-picker v-model="settings[color.key]" :show-alpha="false"
+                                         @active-change="(picked) => { settings[color.key] = picked; }"/>
+                    </SettingRow>
+                </SettingsCard>
+
+                <SettingsCard :title="$t('Preview')"
+                              :description="$t('Sample content in the colours above.')">
+                    <template #actions>
+                        <el-button size="small" @click="showingPreview = !showingPreview">
+                            {{ showingPreview ? $t('Hide') : $t('Show') }}
+                        </el-button>
+                    </template>
+
+                    <div v-if="defaultContent && showingPreview" class="fls_email_preview">
+                        <emailbody-container :style_config="settings" :content="defaultContent"/>
+                    </div>
+                </SettingsCard>
+
+                <SettingsCard :title="$t('Footer')"
+                              :description="$t('Appears at the bottom of every system email.')">
+                    <SettingRow stacked :label="$t('Footer text')">
+                        <WPEditor :height="80" v-model="settings.footer_text"/>
+                    </SettingRow>
+                </SettingsCard>
+
+                <SettingsCard :title="$t('Sender')"
+                              :description="$t('Leave these empty to keep whatever WordPress or your mail plugin already uses.')">
+                    <SettingRow :label="$t('From address')">
+                        <el-input v-model="settings.from_email" :placeholder="$t('Enter email address')"/>
+                    </SettingRow>
+
+                    <SettingRow :label="$t('From name')">
+                        <el-input type="text" v-model="settings.from_name" :placeholder="$t('Enter from name')"/>
+                    </SettingRow>
+
+                    <SettingRow :label="$t('Reply-to address')"
+                                :description="$t('Where a reply goes, if that is not the sending address.')">
+                        <el-input v-model="settings.reply_to_email" :placeholder="$t('Enter reply email address')"/>
+                    </SettingRow>
+
+                    <SettingRow :label="$t('Reply-to name')">
+                        <el-input type="text" v-model="settings.reply_to_name" :placeholder="$t('Enter reply to name')"/>
+                    </SettingRow>
+                </SettingsCard>
+            </el-form>
+        </div>
+    </div>
+</template>
+
+<style lang="scss">
+.fls_email_preview {
+    padding: 16px 0;
+}
+</style>

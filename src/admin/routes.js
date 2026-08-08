@@ -45,11 +45,10 @@ const settingsChildren = [
         component: AuthShortcodes,
         meta: {title: 'Login/Signup Forms'}
     },
+    // The designer used to live here. Kept so an existing bookmark still lands on it.
     {
         path: 'login-page-design',
-        name: 'settings_auth_customizer',
-        component: AuthCustomizer,
-        meta: {title: 'Login Page Design'}
+        redirect: {name: 'settings_auth_customizer'}
     },
     {
         path: 'redirects',
@@ -119,6 +118,22 @@ export var routes = [
         meta: {
             active: 'security_scans',
             title: 'Security Scans'
+        }
+    },
+    /*
+     * The login page designer covers the whole screen and draws its own header, so it
+     * sits outside the settings shell rather than inside it. That is not only tidier:
+     * the settings pane is pinned, which makes it a stacking context, and an editor
+     * nested inside one cannot lift itself above wp-admin's menu however high its
+     * z-index goes. Its own Back button returns to the forms screen.
+     */
+    {
+        path: '/login-page-design',
+        name: 'settings_auth_customizer',
+        component: AuthCustomizer,
+        meta: {
+            active: 'settings',
+            title: 'Login Page Design'
         }
     },
     {

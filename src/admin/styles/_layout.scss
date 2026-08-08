@@ -350,7 +350,7 @@ body.toplevel_page_fluent-auth {
     }
 
     .fls_card_head {
-        @apply px-6 border-0 border-b border-solid border-gray-divider;
+        @apply flex items-start justify-between gap-4 px-6 border-0 border-b border-solid border-gray-divider;
 
         padding-top: 16px;
         padding-bottom: 16px;
@@ -364,6 +364,10 @@ body.toplevel_page_fluent-auth {
 
             margin-top: 4px;
         }
+
+        .fls_card_head_actions {
+            @apply flex items-center gap-2 flex-shrink-0;
+        }
     }
 
     .fls_card_body {
@@ -372,6 +376,51 @@ body.toplevel_page_fluent-auth {
         padding-top: 4px;
         padding-bottom: 4px;
     }
+}
+
+/* ------------------------------------------------------------- small parts */
+
+/* Something to copy out: a block for several lines, inline for one value. */
+.fls_code,
+.fls_code_inline {
+    @apply bg-gray-25 text-system-dark border border-solid border-gray-divider rounded;
+
+    font-family: Menlo, Consolas, monospace;
+    font-size: 12px;
+    user-select: all;
+}
+
+.fls_code {
+    @apply block m-0 p-3;
+
+    line-height: 1.7;
+    white-space: pre;
+    overflow-x: auto;
+}
+
+.fls_code_inline {
+    @apply inline-block;
+
+    padding: 3px 8px;
+    word-break: break-all;
+}
+
+.fls_note {
+    @apply text-xs text-system-light;
+
+    margin: 16px 0;
+}
+
+/* A table sits flush inside its card - the card already draws the frame. */
+.fls_table {
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.fls_pager {
+    @apply flex justify-end;
+
+    margin-top: 16px;
 }
 
 /* ----------------------------------------------------------- setting row */

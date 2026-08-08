@@ -1,110 +1,14 @@
-<template>
-    <div class="dashboard box_wrapper">
-        <div class="box dashboard_box box_narrow">
-            <div v-loading="loading" class="box_header" style="padding: 15px;font-size: 16px;">
-                {{$t('Login Redirects Settings')}}
-                <div class="box_actions">
-                    <el-button size="small" v-loading="saving" :disabled="saving" @click="saveSettings()"
-                               type="success">
-                        {{$t('Save Settings')}}
-                    </el-button>
-                </div>
-            </div>
-            <div v-if="settings" class="box_body">
-                <el-form :data="settings" label-position="top">
-
-                    <el-form-item class="fls_switch">
-                        <el-switch v-model="settings.login_redirects" active-value="yes" inactive-value="no"/>
-                        {{$t('Enable Custom Login Redirects')}}
-                    </el-form-item>
-
-                    <template v-if="settings.login_redirects == 'yes'">
-                        <div class="fls_login_settings">
-                            <el-row :gutter="20">
-                                <el-col :md="12" :xs="24">
-                                    <el-form-item :label="$t('Default Login Redirect URL')">
-                                        <el-input type="url" :placeholder="$t('Default Login Redirect URL')"
-                                                  v-model="settings.default_login_redirect"/>
-                                    </el-form-item>
-                                </el-col>
-                                <el-col :md="12" :xs="24">
-                                    <el-form-item :label="$t('Default Logout Redirect URL')">
-                                        <el-input type="url" :placeholder="$t('Default Logout Redirect URL')"
-                                                  v-model="settings.default_logout_redirect"/>
-                                    </el-form-item>
-                                </el-col>
-                            </el-row>
-
-                            <p style="margin-bottom: 10px;">
-                                {{$t('Please note, If there has redirect_to query parameter in the Login Page URL, it will be used for redirection instead of these set rule.')}}
-                            </p>
-                        </div>
-
-
-
-                        <h3>{{$t('Advanced Redirect Rules')}}</h3>
-                        <div class="fls_advanced_rules">
-                            <div v-for="(rule, ruleIndex) in settings.redirect_rules" :key="ruleIndex"
-                                 class="fls_rule_group">
-                                <div class="fls_rule_number">
-                                    <span class="fls_number">#{{ ruleIndex + 1 }}</span>
-                                    <el-button :text="true" @click="deleteRule(ruleIndex)" :icon="Delete" size="small"></el-button>
-                                </div>
-                                <redirect-rule v-for="(ruleItem, ruleItemIndex) in rule.conditions"
-                                               :rule="ruleItem"
-                                               :providers="conditionProviders"
-                                               :roles="roles"
-                                               :capabilities="user_capabilities"
-                                               :key="ruleItemIndex"/>
-                                <div class="fls_then_arrow">{{$t('then')}}</div>
-                                <el-row style="margin-top: 20px;" :gutter="20">
-                                    <el-col :md="12" :xs="24">
-                                        <el-form-item :label="$t('Login Redirect URL')">
-                                            <el-input type="url" :placeholder="$t('Login Redirect URL')" v-model="rule.login"/>
-                                        </el-form-item>
-                                    </el-col>
-                                    <el-col :md="12" :xs="24">
-                                        <el-form-item :label="$t('Logout Redirect URL')">
-                                            <el-input type="url" :placeholder="$t('Logout Redirect URL')"
-                                                      v-model="rule.logout"/>
-                                        </el-form-item>
-                                    </el-col>
-                                </el-row>
-                            </div>
-                        </div>
-                        <div style="margin-bottom: 20px;" class="fls_controls text-align-right">
-                            <el-button type="default" size="small" @click="addNewRule()">{{$t('Add Rule')}}</el-button>
-                        </div>
-                        <hr style="margin-bottom: 20px"/>
-                    </template>
-
-                    <el-form-item>
-                        <el-button v-loading="saving" :disabled="saving" @click="saveSettings()" type="success">
-                            {{$t('Save Settings')}}
-                        </el-button>
-                    </el-form-item>
-
-                    <div class="fls_errors" v-if="errors">
-                        <ul>
-                            <li v-for="(error, errorKey) in errors" :key="errorKey" v-html="convertToText(error)"></li>
-                        </ul>
-                    </div>
-                </el-form>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script type="text/babel">
 import RedirectRule from './_RedirectRule';
+import SettingsHeader from './Settings/_SettingsHeader.vue';
+import SettingsCard from './Settings/_SettingsCard.vue';
+import SettingRow from './Settings/_SettingRow.vue';
 import {Delete} from '@element-plus/icons-vue'
 import {markRaw} from 'vue';
 
 export default {
     name: 'LoginRedirectSettings',
-    components: {
-        RedirectRule
-    },
+    components: {RedirectRule, SettingsHeader, SettingsCard, SettingRow},
     data() {
         return {
             loading: false,
@@ -128,13 +32,17 @@ export default {
             user_capabilities: {}
         }
     },
+    computed: {
+        enabled() {
+            return this.settings && this.settings.login_redirects === 'yes';
+        }
+    },
     methods: {
         saveSettings() {
             this.errors = false;
-            this.saving = false;
-            this.$post('auth-forms-settings', {
-                redirect_settings: this.settings
-            })
+            this.saving = true;
+
+            this.$post('auth-forms-settings', {redirect_settings: this.settings})
                 .then(response => {
                     this.$notify.success(response.message);
                 })
@@ -148,11 +56,12 @@ export default {
         },
         getSettings() {
             this.loading = true;
+
             this.$get('auth-forms-settings')
                 .then(response => {
-                    this.settings = response.settings
-                    this.roles = response.roles
-                    this.user_capabilities = response.user_capabilities
+                    this.settings = response.settings;
+                    this.roles = response.roles;
+                    this.user_capabilities = response.user_capabilities;
                 })
                 .catch((errors) => {
                     this.$handleError(errors)
@@ -183,3 +92,120 @@ export default {
     }
 }
 </script>
+
+<template>
+    <div>
+        <SettingsHeader :heading="$t('Login Redirects')"
+                        :description="$t('Where people land after signing in and after signing out.')"
+                        :saving="saving" @save="saveSettings()"/>
+
+        <div class="fls_settings_content">
+            <el-skeleton v-if="!settings" :animated="true" :rows="6"/>
+
+            <el-form v-else label-position="top">
+                <SettingsCard :title="$t('Custom redirects')"
+                              :description="$t('With this off, WordPress decides where people go, which is usually the dashboard.')">
+                    <template #actions>
+                        <el-switch v-model="settings.login_redirects" active-value="yes" inactive-value="no"/>
+                    </template>
+                </SettingsCard>
+
+                <template v-if="enabled">
+                    <SettingsCard :title="$t('Default destinations')"
+                                  :description="$t('Used for anyone no rule below applies to. A redirect_to parameter on the login URL still wins over both.')">
+                        <SettingRow :label="$t('After signing in')">
+                            <el-input type="url" v-model="settings.default_login_redirect"
+                                      :placeholder="appVars.site_url"/>
+                        </SettingRow>
+
+                        <SettingRow :label="$t('After signing out')">
+                            <el-input type="url" v-model="settings.default_logout_redirect"
+                                      :placeholder="appVars.site_url"/>
+                        </SettingRow>
+                    </SettingsCard>
+
+                    <SettingsCard :title="$t('Rules')"
+                                  :description="$t('Send particular people somewhere else. The first rule that matches is the one used, so put the most specific first.')">
+                        <template #actions>
+                            <el-button size="small" @click="addNewRule()">{{ $t('Add rule') }}</el-button>
+                        </template>
+
+                        <p v-if="!settings.redirect_rules.length" class="fls_note">
+                            {{ $t('No rules yet. Everyone follows the defaults above.') }}
+                        </p>
+
+                        <div v-for="(rule, ruleIndex) in settings.redirect_rules" :key="ruleIndex"
+                             class="fls_rule">
+                            <div class="fls_rule_head">
+                                <span class="fls_rule_number">{{ $t('Rule %s', ruleIndex + 1) }}</span>
+                                <el-button :text="true" :icon="Delete" size="small"
+                                           @click="deleteRule(ruleIndex)">
+                                    {{ $t('Remove') }}
+                                </el-button>
+                            </div>
+
+                            <redirect-rule v-for="(ruleItem, ruleItemIndex) in rule.conditions"
+                                           :rule="ruleItem"
+                                           :providers="conditionProviders"
+                                           :roles="roles"
+                                           :capabilities="user_capabilities"
+                                           :key="ruleItemIndex"/>
+
+                            <div class="fls_then">{{ $t('then send them to') }}</div>
+
+                            <el-row :gutter="20">
+                                <el-col :md="12" :xs="24">
+                                    <el-form-item :label="$t('After signing in')">
+                                        <el-input type="url" v-model="rule.login" :placeholder="appVars.site_url"/>
+                                    </el-form-item>
+                                </el-col>
+                                <el-col :md="12" :xs="24">
+                                    <el-form-item :label="$t('After signing out')">
+                                        <el-input type="url" v-model="rule.logout" :placeholder="appVars.site_url"/>
+                                    </el-form-item>
+                                </el-col>
+                            </el-row>
+                        </div>
+                    </SettingsCard>
+                </template>
+
+                <div class="fls_errors" v-if="errors">
+                    <ul>
+                        <li v-for="(error, errorKey) in errors" :key="errorKey" v-html="convertToText(error)"></li>
+                    </ul>
+                </div>
+            </el-form>
+        </div>
+    </div>
+</template>
+
+<style lang="scss">
+.fls_rule {
+    border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+    border-radius: 4px;
+    padding: 16px;
+    margin: 16px 0;
+
+    &:last-child {
+        margin-bottom: 4px;
+    }
+
+    .fls_rule_head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+    }
+
+    .fls_rule_number {
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .fls_then {
+        font-size: 12px;
+        color: #909399;
+        margin: 12px 0;
+    }
+}
+</style>

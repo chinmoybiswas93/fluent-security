@@ -1,101 +1,29 @@
-<template>
-    <div class="box_wrapper">
-        <div class="box dashboard_box box_narrow">
-            <div class="box_header" style="padding: 15px;font-size: 16px;">
-                <div style="padding-top: 5px;" class="box_head">
-                    {{ $t('Customize Default WordPress System Emails') }}
-                    <p style="font-weight: 500; margin: 10px 0 0;">
-                        {{$t('Customize your default system emails sent by WordPress. Make it beautiful and use your own content.')}}
-                    </p>
-                </div>
-                <div style="display: flex;" class="box_actions">
-                    <el-button @click="$router.push({name: 'settings_email_template'})" type="primary">
-                        {{$t('Template Settings')}}
-                    </el-button>
-                </div>
-            </div>
-            <div v-loading="loading" class="box_body_x">
-                <h3>{{$t('System Emails send to User')}}</h3>
-                <el-table :data="formattedIndexes.user_emails" stripe>
-                    <el-table-column min-width="300" prop="name" :label="$t('Description')">
-                        <template #default="scope">
-                            <div class="fls_email_name">
-                                <p class="fls_email_title">
-                                    {{ scope.row.title }}
-                                </p>
-                                <p class="fls_email_desc">{{ scope.row.description }}</p>
-                            </div>
-                        </template>
-                    </el-table-column>
-                    <el-table-column prop="status" width="150" :label="$t('Status')">
-                        <template #default="scope">
-                            <el-tag :type="getStatusType(scope.row.status)">
-                                {{ getStatusName(scope.row.status) }}
-                            </el-tag>
-                        </template>
-                    </el-table-column>
-                    <el-table-column width="100" :label="$t('Actions')">
-                        <template #default="scope">
-                            <el-button size="small" type="primary"
-                                       @click="$router.push({ name: 'settings_edit_email', params: { email_id: scope.row.name } })">
-                                {{ $t('Edit') }}
-                            </el-button>
-                        </template>
-                    </el-table-column>
-                </el-table>
-
-                <h3 style="margin-top: 30px;">{{$t('System Emails send to Site Admin')}}</h3>
-                <el-table :data="formattedIndexes.admin_emails" stripe>
-                    <el-table-column min-width="300" prop="name" :label="$t('Description')">
-                        <template #default="scope">
-                            <div class="fls_email_name">
-                                <p class="fls_email_title">
-                                    {{ scope.row.title }}
-                                </p>
-                                <p class="fls_email_desc">{{ scope.row.description }}</p>
-                            </div>
-                        </template>
-                    </el-table-column>
-                    <el-table-column prop="status" width="150" :label="$t('Status')">
-                        <template #default="scope">
-                            <el-tag :type="getStatusType(scope.row.status)">
-                                {{ getStatusName(scope.row.status) }}
-                            </el-tag>
-                        </template>
-                    </el-table-column>
-                    <el-table-column width="100" :label="$t('Actions')">
-                        <template #default="scope">
-                            <el-button size="small" type="primary" @click="$router.push({ name: 'settings_edit_email', params: { email_id: scope.row.name } })">
-                                {{ $t('Edit') }}
-                            </el-button>
-                        </template>
-                    </el-table-column>
-                </el-table>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script type="text/babel">
 import each from 'lodash/each';
+import SettingsHeader from '../Settings/_SettingsHeader.vue';
+import SettingsCard from '../Settings/_SettingsCard.vue';
 
 export default {
     name: 'CustomizeWPEmails',
+    components: {SettingsHeader, SettingsCard},
     data() {
         return {
             emailIndexes: [],
-            loading: false,
-            showTemplateSettings: false
+            loading: false
         }
     },
     computed: {
-        formattedIndexes() {
+        /**
+         * Split by who receives the email. The two groups are worth keeping apart:
+         * one is what your users see, the other only ever reaches you.
+         */
+        groups() {
             let indexes = {
                 user_emails: [],
                 admin_emails: []
             };
 
-            each(this.emailIndexes, function (index, email) {
+            each(this.emailIndexes, function (index) {
                 if (index.recipient == 'user') {
                     indexes.user_emails.push(index);
                 } else if (index.recipient == 'site_admin') {
@@ -109,6 +37,7 @@ export default {
     methods: {
         fetchEmails() {
             this.loading = true;
+
             this.$get('wp-default-emails')
                 .then(response => {
                     this.emailIndexes = response.emailIndexes;
@@ -119,26 +48,40 @@ export default {
                 .finally(() => {
                     this.loading = false;
                 });
-
         },
+        /*
+         * The three the server actually stores. It used to be matched against 'custom',
+         * which is never written, so every customised email fell through and showed the
+         * raw word "active".
+         */
         getStatusType(status) {
-            if (status == 'system') {
-                return 'info';
-            } else if (status == 'custom') {
+            if (status == 'active') {
                 return 'success';
-            } else if (status == 'disabled') {
+            }
+
+            if (status == 'disabled') {
                 return 'danger';
             }
+
+            return 'info';
         },
         getStatusName(status) {
-            if (status == 'system') {
-                return this.$t('System Default');
-            } else if (status == 'custom') {
-                return this.$t('Enabled');
-            } else if (status == 'disabled') {
+            if (status == 'active') {
+                return this.$t('Customized');
+            }
+
+            if (status == 'disabled') {
                 return this.$t('Disabled');
             }
+
+            if (status == 'system') {
+                return this.$t('WordPress default');
+            }
+
             return status;
+        },
+        editEmail(row) {
+            this.$router.push({name: 'settings_edit_email', params: {email_id: row.name}});
         }
     },
     mounted() {
@@ -146,3 +89,71 @@ export default {
     }
 }
 </script>
+
+<template>
+    <div>
+        <SettingsHeader :heading="$t('System Emails')"
+                        :description="$t('The emails WordPress itself sends, in your own words and your own design.')"
+                        :show-save="false">
+            <template #actions>
+                <el-button size="small" @click="$router.push({name: 'settings_email_template'})">
+                    {{ $t('Template design') }}
+                </el-button>
+            </template>
+        </SettingsHeader>
+
+        <div class="fls_settings_content" v-loading="loading">
+            <SettingsCard :title="$t('Sent to your users')"
+                          :description="$t('Anything left as the WordPress default keeps sending exactly as it does today.')">
+                <el-table :data="groups.user_emails" class="fls_table">
+                    <el-table-column min-width="300" prop="name" :label="$t('Email')">
+                        <template #default="scope">
+                            <div class="fls_email_name">
+                                <p class="fls_email_title">{{ scope.row.title }}</p>
+                                <p class="fls_email_desc">{{ scope.row.description }}</p>
+                            </div>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="status" width="160" :label="$t('Status')">
+                        <template #default="scope">
+                            <el-tag :type="getStatusType(scope.row.status)" disable-transitions>
+                                {{ getStatusName(scope.row.status) }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column width="100" align="right">
+                        <template #default="scope">
+                            <el-button size="small" @click="editEmail(scope.row)">{{ $t('Edit') }}</el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </SettingsCard>
+
+            <SettingsCard :title="$t('Sent to you')"
+                          :description="$t('Notices about the site itself, delivered to the administration address.')">
+                <el-table :data="groups.admin_emails" class="fls_table">
+                    <el-table-column min-width="300" prop="name" :label="$t('Email')">
+                        <template #default="scope">
+                            <div class="fls_email_name">
+                                <p class="fls_email_title">{{ scope.row.title }}</p>
+                                <p class="fls_email_desc">{{ scope.row.description }}</p>
+                            </div>
+                        </template>
+                    </el-table-column>
+                    <el-table-column prop="status" width="160" :label="$t('Status')">
+                        <template #default="scope">
+                            <el-tag :type="getStatusType(scope.row.status)" disable-transitions>
+                                {{ getStatusName(scope.row.status) }}
+                            </el-tag>
+                        </template>
+                    </el-table-column>
+                    <el-table-column width="100" align="right">
+                        <template #default="scope">
+                            <el-button size="small" @click="editEmail(scope.row)">{{ $t('Edit') }}</el-button>
+                        </template>
+                    </el-table-column>
+                </el-table>
+            </SettingsCard>
+        </div>
+    </div>
+</template>

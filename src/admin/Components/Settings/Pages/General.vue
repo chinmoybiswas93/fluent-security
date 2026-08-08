@@ -1,7 +1,7 @@
 <script type="text/babel">
 import settingsPage from '../settingsPage';
 import SettingsHeader from '../_SettingsHeader.vue';
-import SettingsSection from '../_SettingsSection.vue';
+import SettingsCard from '../_SettingsCard.vue';
 
 import CoreSecuritySection from '../Sections/_CoreSecurity.vue';
 import LoginSecuritySection from '../Sections/_LoginSecurity.vue';
@@ -23,7 +23,7 @@ export default {
     mixins: [settingsPage],
     components: {
         SettingsHeader,
-        SettingsSection,
+        SettingsCard,
         CoreSecuritySection,
         LoginSecuritySection,
         MagicLoginSection,
@@ -92,41 +92,41 @@ export default {
             <el-skeleton v-if="!settings" :animated="true" :rows="8"/>
 
             <el-form v-else label-position="top">
-                <SettingsSection id="core" :title="$t('Core Security')"
+                <SettingsCard id="core" :title="$t('Core Security')"
                                  :description="$t('The parts of WordPress that are exposed by default.')">
                     <CoreSecuritySection :settings="settings"/>
-                </SettingsSection>
+                </SettingsCard>
 
-                <SettingsSection id="login_security" :title="$t('Login Security')"
+                <SettingsCard id="login_security" :title="$t('Login Security')"
                                  :description="$t('How many times an address may get a password wrong before it is shut out.')">
                     <LoginSecuritySection :settings="settings"/>
-                </SettingsSection>
+                </SettingsCard>
 
-                <SettingsSection id="two_fa" :title="$t('Two-Factor Authentication')"
+                <SettingsCard id="two_fa" :title="$t('Two-Factor Authentication')"
                                  :description="$t('A second factor is only worth the friction when it proves something the password did not. Each method states what it proves, because that is what decides when it is asked for.')">
                     <TwoFaSettings :settings="settings" :user_roles="user_roles"/>
-                </SettingsSection>
+                </SettingsCard>
 
-                <SettingsSection id="magic_login" :title="$t('Magic Login')"
+                <SettingsCard id="magic_login" :title="$t('Magic Login')"
                                  :description="$t('Signing in from a link sent to the account address, with no password typed at all.')">
                     <MagicLoginSection :settings="settings" :user_roles="user_roles"/>
-                </SettingsSection>
+                </SettingsCard>
 
-                <SettingsSection id="notifications" :title="$t('Notifications')"
+                <SettingsCard id="notifications" :title="$t('Notifications')"
                                  :description="$t('What the plugin emails you about, and where it sends it.')">
                     <NotificationsSection :settings="settings" :user_roles="user_roles"/>
-                </SettingsSection>
+                </SettingsCard>
 
-                <SettingsSection id="visitor_ip" :title="$t('Visitor IP')"
+                <SettingsCard id="visitor_ip" :title="$t('Visitor IP')"
                                  :description="$t('Where a visitor\'s address is read from. The attempt limit counts per address, so this decides whether it counts the right people.')">
                     <ProxySettings :settings="settings" :detection="proxy_detection"
                                    :config_locked="proxy_config_locked"/>
-                </SettingsSection>
+                </SettingsCard>
 
-                <SettingsSection id="advanced" :title="$t('Advanced')"
+                <SettingsCard id="advanced" :title="$t('Advanced')"
                                  :description="$t('Log retention and admin area access.')">
                     <AdvancedSection :settings="settings" :low_level_roles="low_level_roles"/>
-                </SettingsSection>
+                </SettingsCard>
             </el-form>
         </div>
     </div>
