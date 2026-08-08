@@ -14,21 +14,50 @@ export default {
             defaultContent: '',
             loading: false,
             saving: false,
-            showingPreview: true,
             defaultColors: {},
             /*
-             * Declared once rather than repeated as six near-identical colour fields.
-             * The @active-change handler is what makes the preview move while you are
-             * still dragging in the picker, before the value is committed.
+             * Grouped the way they read in the preview - the page, then the message on
+             * it, then the button in the message - so the list is walked in the same
+             * order as the thing beside it.
              */
-            colors: [
-                {key: 'body_bg', label: 'Page background', description: 'Behind the email itself.'},
-                {key: 'content_bg', label: 'Content background', description: 'The card the message sits on.'},
-                {key: 'content_color', label: 'Text', description: 'Body copy.'},
-                {key: 'highlight_bg', label: 'Button background', description: 'Behind a call to action.'},
-                {key: 'highlight_color', label: 'Button text', description: 'On top of it.'},
-                {key: 'footer_content_color', label: 'Footer text', description: 'The small print at the bottom.'}
+            groups: [
+                {
+                    title: 'Page',
+                    colors: [
+                        {key: 'body_bg', label: 'Background', hint: 'Behind the message.'},
+                        {key: 'footer_content_color', label: 'Footer text', hint: 'The small print below the message.'}
+                    ]
+                },
+                {
+                    title: 'Message',
+                    colors: [
+                        {key: 'content_bg', label: 'Background', hint: 'The card the message sits on.'},
+                        {key: 'content_color', label: 'Text', hint: 'Body copy.'}
+                    ]
+                },
+                {
+                    title: 'Button',
+                    colors: [
+                        {key: 'highlight_bg', label: 'Background', hint: 'Behind a call to action.'},
+                        {key: 'highlight_color', label: 'Text', hint: 'On top of it.'}
+                    ]
+                }
             ]
+        }
+    },
+    computed: {
+        /** True once every colour matches the shipped default, which is when Reset is a no-op. */
+        isDefault() {
+            if (!this.settings || !Object.keys(this.defaultColors).length) {
+                return true;
+            }
+
+            /*
+             * Compared as hex, because a default stored as `rgb(...)` and the hex the
+             * picker writes back are the same colour and should not read as a change.
+             */
+            return Object.keys(this.defaultColors)
+                .every(key => this.hex(this.settings[key]) === this.hex(this.defaultColors[key]));
         }
     },
     methods: {
@@ -63,11 +92,33 @@ export default {
                 });
         },
         setDefaultColors() {
-            let defaultColors = this.defaultColors;
-
-            for (let key in defaultColors) {
-                this.settings[key] = defaultColors[key];
+            for (let key in this.defaultColors) {
+                this.settings[key] = this.defaultColors[key];
             }
+        },
+        /**
+         * The stored value, shown as a hex code.
+         *
+         * Some of the shipped defaults are `rgb(249, 250, 251)` rather than a hex code,
+         * which read as one odd row in a column of `#RRGGBB`. Only the display is
+         * normalised - rewriting what is stored would change a saved setting just for
+         * having looked at the screen.
+         */
+        hex(value) {
+            if (!value) {
+                return '';
+            }
+
+            const parts = String(value).match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+
+            if (!parts) {
+                return String(value).toUpperCase();
+            }
+
+            return '#' + parts.slice(1, 4)
+                .map(n => Number(n).toString(16).padStart(2, '0'))
+                .join('')
+                .toUpperCase();
         }
     },
     mounted() {
@@ -92,29 +143,38 @@ export default {
             <el-skeleton v-if="!settings" :animated="true" :rows="6"/>
 
             <el-form v-else label-position="top">
-                <SettingsCard :title="$t('Colours')"
-                              :description="$t('Applied to every system email at once.')">
+                <SettingsCard :title="$t('Design')"
+                              :description="$t('Applied to every system email at once. The preview updates as you pick.')">
                     <template #actions>
-                        <el-button size="small" @click="setDefaultColors()">{{ $t('Reset') }}</el-button>
-                    </template>
-
-                    <SettingRow v-for="color in colors" :key="color.key"
-                                :label="$t(color.label)" :description="$t(color.description)">
-                        <el-color-picker v-model="settings[color.key]" :show-alpha="false"
-                                         @active-change="(picked) => { settings[color.key] = picked; }"/>
-                    </SettingRow>
-                </SettingsCard>
-
-                <SettingsCard :title="$t('Preview')"
-                              :description="$t('Sample content in the colours above.')">
-                    <template #actions>
-                        <el-button size="small" @click="showingPreview = !showingPreview">
-                            {{ showingPreview ? $t('Hide') : $t('Show') }}
+                        <el-button size="small" :disabled="isDefault" @click="setDefaultColors()">
+                            {{ $t('Reset colours') }}
                         </el-button>
                     </template>
 
-                    <div v-if="defaultContent && showingPreview" class="fls_email_preview">
-                        <emailbody-container :style_config="settings" :content="defaultContent"/>
+                    <div class="fls_design">
+                        <div class="fls_design_controls">
+                            <div v-for="group in groups" :key="group.title" class="fls_swatch_group">
+                                <h3>{{ $t(group.title) }}</h3>
+
+                                <div v-for="color in group.colors" :key="color.key" class="fls_swatch">
+                                    <el-color-picker v-model="settings[color.key]" :show-alpha="false"
+                                                     color-format="hex"
+                                                     @active-change="(picked) => { settings[color.key] = picked; }"/>
+                                    <div class="fls_swatch_text">
+                                        <span class="fls_swatch_label">{{ $t(color.label) }}</span>
+                                        <span class="fls_swatch_hint">{{ $t(color.hint) }}</span>
+                                    </div>
+                                    <code class="fls_swatch_value">{{ hex(settings[color.key]) }}</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Stays in view while the colours beside it are changed. -->
+                        <div class="fls_design_preview">
+                            <span class="fls_design_preview_label">{{ $t('Preview') }}</span>
+                            <emailbody-container v-if="defaultContent" :style_config="settings"
+                                                 :content="defaultContent"/>
+                        </div>
                     </div>
                 </SettingsCard>
 
@@ -150,7 +210,128 @@ export default {
 </template>
 
 <style lang="scss">
-.fls_email_preview {
-    padding: 16px 0;
+/*
+ * Colours on the left, the thing they colour on the right. They were stacked before, one
+ * full-width row per colour, which pushed the preview a screen and a half below the
+ * controls - so the one moment the preview matters, while a colour is being chosen, was
+ * the one moment it could not be seen.
+ */
+.fls_design {
+    display: flex;
+    align-items: flex-start;
+    gap: 32px;
+    padding: 20px 0;
+
+    .fls_design_controls {
+        flex: 0 0 300px;
+        max-width: 300px;
+    }
+
+    /*
+     * Deliberately not sticky. The preview is the taller of the two columns, so it is
+     * what gives the row its height - which leaves a sticky preview no range to travel
+     * and makes the rule inert. Sizing it to the viewport instead means the controls and
+     * the preview are on screen together without scrolling at all, which is the thing
+     * that actually matters while a colour is being chosen.
+     */
+    .fls_design_preview {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .fls_design_preview_label {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #909399;
+        margin-bottom: 8px;
+    }
+}
+
+.fls_swatch_group {
+    margin-bottom: 20px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+
+    h3 {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #909399;
+        font-weight: 600;
+        margin: 0 0 6px;
+    }
+}
+
+.fls_swatch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+
+    .fls_swatch_text {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+
+    .fls_swatch_label {
+        display: block;
+        font-size: 13px;
+        font-weight: 500;
+        line-height: 1.3;
+    }
+
+    .fls_swatch_hint {
+        display: block;
+        font-size: 11px;
+        color: #909399;
+        line-height: 1.3;
+    }
+
+    .fls_swatch_value {
+        flex: 0 0 auto;
+        font-size: 11px;
+        color: #909399;
+        text-transform: uppercase;
+        background: none;
+        padding: 0;
+    }
+
+    .el-color-picker__trigger {
+        border-radius: 4px;
+    }
+}
+
+.fls_email_frame iframe {
+    width: 100%;
+
+    /*
+     * Tall enough to show the shape of the email, short enough that the card still fits
+     * a laptop screen alongside the controls. The middle term is the viewport less the
+     * admin bar, app bar, settings header and this card's own framing.
+     */
+    height: clamp(380px, calc(100vh - 330px), 620px);
+    border-radius: 4px;
+    border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+    background: #fff;
+    display: block;
+}
+
+@media (max-width: 1100px) {
+    .fls_design {
+        display: block;
+
+        .fls_design_controls {
+            max-width: none;
+            margin-bottom: 24px;
+        }
+
+        .fls_design_preview {
+            position: static;
+        }
+    }
 }
 </style>
