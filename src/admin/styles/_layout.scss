@@ -7,6 +7,11 @@
  * which survives the plugin being rendered inside whatever wp-admin gives it.
  */
 
+:root {
+    /* FluentCart's --body-bg. Declared here because <body> itself is painted with it. */
+    --fls-body-bg: #F3F5FA;
+}
+
 /* --------------------------------------------------------------- wp-admin fit */
 
 /*
@@ -20,6 +25,14 @@
  * this plugin's screen by the body class WordPress puts there.
  */
 body.toplevel_page_fluent-auth {
+    /*
+     * FluentCart's page background, copied from its `--body-bg` rather than approximated
+     * - wp-admin's own grey is #f0f0f1, a warmer and flatter one, and the difference is
+     * plain when the two plugins sit next to each other in the same menu. Scoped to this
+     * screen so no other plugin's pages change colour.
+     */
+    background-color: var(--fls-body-bg);
+
     #wpbody-content {
         padding-bottom: 0;
     }
