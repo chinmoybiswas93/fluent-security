@@ -25,7 +25,7 @@ class TwoFaAdminTest extends BaseTestCase
 
         $settings = Helper::getAuthSettings();
         $settings['totp_2fa'] = 'yes';
-        $settings['totp_2fa_roles'] = [];
+        $settings['totp_2fa_roles'] = ['administrator'];
         $settings['totp_required_roles'] = [];
         $settings['email2fa'] = 'no';
         update_option('__fls_auth_settings', $settings);
@@ -83,7 +83,11 @@ class TwoFaAdminTest extends BaseTestCase
         $this->assertArrayHasKey('totp_required_roles', $result->get_error_data());
     }
 
-    public function testAnEmptyAllowListAcceptsAnyRequiredRole()
+    /**
+     * An empty allow list offers the method to nobody, so it conflicts with every
+     * required role rather than with none of them.
+     */
+    public function testAnEmptyAllowListRefusesEveryRequiredRole()
     {
         $result = $this->save([
             'totp_2fa'            => 'yes',
@@ -91,7 +95,8 @@ class TwoFaAdminTest extends BaseTestCase
             'totp_required_roles' => ['administrator']
         ]);
 
-        $this->assertNotWPError($result);
+        $this->assertWPError($result);
+        $this->assertArrayHasKey('totp_required_roles', $result->get_error_data());
     }
 
     public function testNobodyCanBeRequiredWhileTheMethodIsOff()
@@ -144,6 +149,94 @@ class TwoFaAdminTest extends BaseTestCase
     /* ---------------------------------------------------------------------
      * The enrollment panel
      * ------------------------------------------------------------------ */
+
+    /**
+     * The screen hides the table when no method is live, so this is what it decides on.
+     * Switched on and offered to no role is switched on for nobody.
+     */
+    public function testItReportsWhichMethodsAreActuallyInForce()
+    {
+        $request = new \WP_REST_Request();
+
+        $this->assertSame(
+            ['totp' => true, 'email' => false],
+            TwoFaController::getUsers($request)['methods']
+        );
+
+        $this->save(['totp_2fa' => 'yes', 'totp_2fa_roles' => [], 'totp_required_roles' => []]);
+
+        $this->assertFalse(
+            TwoFaController::getUsers($request)['methods']['totp'],
+            'Offered to nobody is not in force.'
+        );
+
+        $this->save(['email2fa' => 'yes', 'email2fa_roles' => ['subscriber']]);
+
+        $this->assertTrue(TwoFaController::getUsers($request)['methods']['email']);
+    }
+
+    /**
+     * The list is for the people a second factor applies to. A membership site has
+     * thousands of subscribers offered nothing, and listing them buries the rows worth
+     * reading under pages of "Not available".
+     */
+    public function testItLeavesOutUsersNoMethodApplesTo()
+    {
+        $outsider = $this->factory->user->create_and_get(['role' => 'subscriber']);
+
+        $ids = array_column(TwoFaController::getUsers(new \WP_REST_Request())['users']['data'], 'id');
+
+        $this->assertContains($this->admin->ID, $ids, 'Their role is allowed an authenticator app.');
+        $this->assertNotContains($outsider->ID, $ids);
+    }
+
+    public function testItIncludesRolesCoveredByEmailedCodesToo()
+    {
+        $subscriber = $this->factory->user->create_and_get(['role' => 'subscriber']);
+
+        $this->save(['email2fa' => 'yes', 'email2fa_roles' => ['subscriber']]);
+
+        $ids = array_column(TwoFaController::getUsers(new \WP_REST_Request())['users']['data'], 'id');
+
+        $this->assertContains($subscriber->ID, $ids);
+    }
+
+    /**
+     * Somebody who enrolled while their role was allowed keeps a working secret after
+     * the role is taken off the list, and this screen is the only place to turn it off.
+     * Dropping them would leave the count above the table reporting a row it cannot show.
+     */
+    public function testItKeepsAnEnrolledUserWhoseRoleIsNoLongerAllowed()
+    {
+        $former = $this->factory->user->create_and_get(['role' => 'subscriber']);
+        TotpTwoFaMethod::activate($former, TotpProvider::generateSecret());
+
+        $ids = array_column(TwoFaController::getUsers(new \WP_REST_Request())['users']['data'], 'id');
+
+        $this->assertContains($former->ID, $ids);
+    }
+
+    /**
+     * The count over the table measures the policy landing, so it counts the people the
+     * policy applies to rather than everyone with an account.
+     */
+    public function testTheSummaryCountsWhoCouldHaveOneRatherThanEverybody()
+    {
+        $this->factory->user->create_and_get(['role' => 'subscriber']);
+        $this->factory->user->create_and_get(['role' => 'subscriber']);
+
+        $summary = TwoFaController::getUsers(new \WP_REST_Request())['summary'];
+
+        $administrators = (new \WP_User_Query(['role' => 'administrator', 'fields' => 'ID', 'number' => 1]))->get_total();
+        $everybody = (new \WP_User_Query(['fields' => 'ID', 'number' => 1]))->get_total();
+
+        $this->assertSame($administrators, $summary['eligible']);
+        $this->assertLessThan(
+            $everybody,
+            $summary['eligible'],
+            'Only administrators are allowed one here, so the two counts must not agree.'
+        );
+    }
 
     public function testItReportsWhoIsEnrolled()
     {

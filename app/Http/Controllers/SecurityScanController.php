@@ -5,6 +5,8 @@ namespace FluentAuth\App\Http\Controllers;
 use FluentAuth\App\Helpers\Arr;
 use FluentAuth\App\Services\IntegrityChecker\Api;
 use FluentAuth\App\Services\IntegrityChecker\CheckerService;
+use FluentAuth\App\Services\IntegrityChecker\ExtensionChecker;
+use FluentAuth\App\Services\IntegrityChecker\ExtensionInventory;
 use FluentAuth\App\Services\IntegrityChecker\IntegrityHelper;
 
 class SecurityScanController
@@ -20,6 +22,12 @@ class SecurityScanController
         return [
             'settings' => $settings,
             'ignores'  => IntegrityHelper::getIgnoreLists(),
+            /*
+             * What the last scan made of wp-content. Unlike core's findings these are kept, so
+             * arriving on the screen shows the standing picture instead of a blank slate.
+             */
+            'extension_results' => array_values(IntegrityHelper::getExtensionResults()),
+            'extension_summary' => IntegrityHelper::getExtensionSummary()
         ];
     }
 
@@ -130,6 +138,136 @@ class SecurityScanController
         ];
     }
 
+    /*
+     * The work list for the plugin and theme phases of a scan.
+     *
+     * Handed to the browser so it can walk the list one item at a time - see ExtensionChecker
+     * for why a single request cannot do all of it - and so the progress it shows is the real
+     * count rather than a guess.
+     */
+    public static function getScanTargets(\WP_REST_Request $request)
+    {
+        $targets = ExtensionInventory::getTargets();
+        $results = IntegrityHelper::getExtensionResults();
+
+        $plugins = [];
+        $themes = [];
+
+        foreach ($targets as $target) {
+            $target = self::applyKnownFailure($target, $results);
+
+            $item = [
+                'type'       => $target['type'],
+                'key'        => $target['key'],
+                'slug'       => $target['slug'],
+                'name'       => $target['name'],
+                'version'    => $target['version'],
+                'rel_path'   => $target['rel_path'],
+                'verifiable' => (bool)$target['verifiable'],
+                'reason'     => $target['reason'],
+                'reason_label' => $target['reason'] ? ExtensionInventory::getReasonLabel($target['reason']) : ''
+            ];
+
+            if ($target['type'] === 'theme') {
+                $themes[] = $item;
+            } else {
+                $plugins[] = $item;
+            }
+        }
+
+        return [
+            'plugins' => $plugins,
+            'themes'  => $themes,
+            'counts'  => [
+                'plugins'            => count($plugins),
+                'themes'            => count($themes),
+                'verifiable_plugins' => count(array_filter($plugins, function ($p) { return $p['verifiable']; })),
+                'verifiable_themes'  => count(array_filter($themes, function ($t) { return $t['verifiable']; }))
+            ]
+        ];
+    }
+
+    /*
+     * Carry forward a failure the last scan already established about this exact version.
+     *
+     * The inventory can only tell that a plugin comes from the .org directory; whether the
+     * directory actually publishes the version installed here is something only an attempt can
+     * find out. Without remembering that attempt the work list calls such a plugin checkable,
+     * the aside counts it as unverified, and the two disagree about the same plugin.
+     *
+     * Only failures that are a property of the version are carried - a version that is not
+     * published will not become published. A download that failed is not one of those: the
+     * network being down once is no reason to stop trying.
+     */
+    protected static function applyKnownFailure($target, $results)
+    {
+        if (empty($target['verifiable'])) {
+            return $target;
+        }
+
+        $key = $target['type'] . ':' . $target['key'];
+        $result = isset($results[$key]) ? $results[$key] : null;
+
+        if (!$result || !empty($result['verifiable'])) {
+            return $target;
+        }
+
+        /* A different version now installed deserves its own attempt. */
+        if (Arr::get($result, 'version') !== $target['version']) {
+            return $target;
+        }
+
+        if (!in_array(Arr::get($result, 'reason'), ['version_not_published', 'no_manifest'], true)) {
+            return $target;
+        }
+
+        $target['verifiable'] = false;
+        $target['reason'] = $result['reason'];
+
+        return $target;
+    }
+
+    /*
+     * Check one plugin or theme. Called once per item while a scan is running.
+     */
+    public static function scanExtension(\WP_REST_Request $request)
+    {
+        $type = $request->get_param('type') === 'theme' ? 'theme' : 'plugin';
+        $key = $request->get_param('key');
+
+        if (!is_string($key) || empty($key)) {
+            return new \WP_Error('invalid_data', __('Please provide the plugin or theme to check.', 'fluent-security'), ['status' => 400]);
+        }
+
+        /*
+         * The target is taken from the inventory rather than from the request. What gets
+         * hashed is a filesystem path and what gets fetched is a wordpress.org slug, and
+         * neither should be something the browser can name.
+         */
+        $target = null;
+        foreach (ExtensionInventory::getTargets() as $candidate) {
+            if ($candidate['type'] === $type && $candidate['key'] === $key) {
+                $target = $candidate;
+                break;
+            }
+        }
+
+        if (!$target) {
+            return new \WP_Error('invalid_data', __('That plugin or theme is not installed on this site.', 'fluent-security'), ['status' => 404]);
+        }
+
+        $checker = new ExtensionChecker();
+        $result = IntegrityHelper::storeExtensionResult($checker->scan($target));
+
+        if (!empty($result['reason'])) {
+            $result['reason_label'] = ExtensionInventory::getReasonLabel($result['reason']);
+        }
+
+        return [
+            'result' => $result
+        ];
+    }
+
     public static function toggleIgnore(\WP_REST_Request $request)
     {
         $willRemove = $request->get_param('will_remove') == 'yes';
@@ -177,6 +315,11 @@ class SecurityScanController
             return new \WP_Error('invalid_data', __('Please provide a valid file name and status.', 'fluent-security'), ['status' => 400, 'data' => $fileConfig]);
         }
 
+        /* A file inside a plugin or theme is found a different way - see below. */
+        if (Arr::get($fileConfig, 'scope') === 'extension') {
+            return self::viewExtensionFileDiff($fileConfig);
+        }
+
         $file = $fileConfig['file'];
         $status = $fileConfig['status'];
         $folder = $fileConfig['folder'];
@@ -210,57 +353,13 @@ class SecurityScanController
             return new \WP_Error('invalid_data', __('This file could not be viewed for security reason.', 'fluent-security'), ['status' => 400, 'data' => $file]);
         }
 
-        $sensitivePatterns = [
-            'wp-config',
-            '.htaccess',
-            '.env',
-            'debug.log',
-            'error_log',
-            'php_errorlog',
-            '.user.ini',
-            '.php.ini',
-            'php.ini',
-            '.ftpconfig',
-            '.ssh',
-        ];
+        $viewable = self::assertViewableFile($filePath, $file);
 
-        $backupExtensions = ['.bak', '.back', '.backup', '.old', '.orig', '.save', '.swp', '.tmp', '.copy', '~'];
-
-        $fileLower = strtolower($file);
-        foreach ($sensitivePatterns as $pattern) {
-            if (strpos($fileLower, $pattern) !== false) {
-                return new \WP_Error('invalid_data', __('This file could not be viewed.', 'fluent-security'), ['status' => 400, 'data' => $file]);
-            }
+        if (is_wp_error($viewable)) {
+            return $viewable;
         }
 
-        foreach ($backupExtensions as $ext) {
-            if (substr($fileLower, -strlen($ext)) === $ext) {
-                return new \WP_Error('invalid_data', __('This file could not be viewed.', 'fluent-security'), ['status' => 400, 'data' => $file]);
-            }
-        }
-
-        if (!file_exists($filePath)) {
-            return new \WP_Error('invalid_data', __('This file could not be viewed.', 'fluent-security'), ['status' => 400, 'data' => $file]);
-        }
-
-        // check if the file size is greater than 2MB
-
-        $maxFileSize = 2 * 1024 * 1024; // 2MB
-        if (filesize($filePath) > $maxFileSize) {
-            return new \WP_Error('invalid_data', __('This file is too large to be viewed.', 'fluent-security'), ['status' => 400, 'data' => $file]);
-        }
-
-        // check if the file is readable
-        if (!is_readable($filePath)) {
-            return new \WP_Error('invalid_data', __('This file is not readable.', 'fluent-security'), ['status' => 400, 'data' => $file]);
-        }
-
-        // get file content using WP File System API
-
-        require_once(ABSPATH . 'wp-admin/includes/file.php');
-        WP_Filesystem();
-        global $wp_filesystem;
-        $fileContent = $wp_filesystem->get_contents($filePath);
+        $fileContent = self::readFileContents($filePath);
 
         $remoteContent = '';
         if ($status == 'modified') {
@@ -283,6 +382,140 @@ class SecurityScanController
             'originalFileContent' => $remoteContent,
         ];
 
+    }
+
+    /*
+     * One file inside a plugin or theme, against the copy wordpress.org published.
+     *
+     * The plugin or theme is looked up in the inventory by the key the browser sends, and the
+     * directory to read from comes from that lookup - never from the request. So the only
+     * thing the caller controls is a path *within* an installed extension, and realpath()
+     * containment settles whether it really is within one.
+     */
+    protected static function viewExtensionFileDiff($fileConfig)
+    {
+        $type = Arr::get($fileConfig, 'type') === 'theme' ? 'theme' : 'plugin';
+        $key = Arr::get($fileConfig, 'key');
+        $file = Arr::get($fileConfig, 'file');
+        $status = Arr::get($fileConfig, 'status');
+
+        if (!is_string($key) || !$key) {
+            return new \WP_Error('invalid_data', __('Please provide the plugin or theme to view.', 'fluent-security'), ['status' => 400]);
+        }
+
+        $target = null;
+        foreach (ExtensionInventory::getTargets() as $candidate) {
+            if ($candidate['type'] === $type && $candidate['key'] === $key) {
+                $target = $candidate;
+                break;
+            }
+        }
+
+        if (!$target) {
+            return new \WP_Error('invalid_data', __('That plugin or theme is not installed on this site.', 'fluent-security'), ['status' => 404]);
+        }
+
+        /* A single-file plugin *is* the file, so there is no path to append. */
+        if (!empty($target['single_file'])) {
+            $filePath = $target['path'];
+            $expectedDir = realpath(dirname($target['path']));
+        } else {
+            $filePath = rtrim($target['path'], '/') . '/' . $file;
+            $expectedDir = realpath($target['path']);
+        }
+
+        $realPath = realpath($filePath);
+
+        if (!$realPath || !$expectedDir || strpos($realPath, $expectedDir . DIRECTORY_SEPARATOR) !== 0) {
+            return new \WP_Error('invalid_data', __('This file could not be viewed for security reason.', 'fluent-security'), ['status' => 400]);
+        }
+
+        $viewable = self::assertViewableFile($realPath, $file);
+
+        if (is_wp_error($viewable)) {
+            return $viewable;
+        }
+
+        $remoteContent = '';
+
+        if ($status === 'modified') {
+            $remoteContent = Api::getExtensionFileContent($type, $target['slug'], $target['version'], $file);
+
+            if (is_wp_error($remoteContent)) {
+                return new \WP_Error('invalid_data', __('Sorry, we could not fetch the original file from WordPress.org.', 'fluent-security'), ['status' => 400]);
+            }
+        }
+
+        return [
+            'filePath'            => '/' . trim($target['rel_path'], '/') . '/' . $file,
+            'fileContent'         => self::readFileContents($realPath),
+            'hasDiff'             => !!$remoteContent,
+            'originalFileContent' => $remoteContent
+        ];
+    }
+
+    /*
+     * Whether a file is one this screen will ever put on the page.
+     *
+     * Shared by the core and extension viewers so a rule added for one applies to both. Path
+     * containment is not checked here - each caller knows the directory a file is supposed to
+     * be under, and has already established it.
+     */
+    protected static function assertViewableFile($filePath, $displayName)
+    {
+        $sensitivePatterns = [
+            'wp-config',
+            '.htaccess',
+            '.env',
+            'debug.log',
+            'error_log',
+            'php_errorlog',
+            '.user.ini',
+            '.php.ini',
+            'php.ini',
+            '.ftpconfig',
+            '.ssh',
+        ];
+
+        $backupExtensions = ['.bak', '.back', '.backup', '.old', '.orig', '.save', '.swp', '.tmp', '.copy', '~'];
+
+        $fileLower = strtolower($displayName);
+
+        foreach ($sensitivePatterns as $pattern) {
+            if (strpos($fileLower, $pattern) !== false) {
+                return new \WP_Error('invalid_data', __('This file could not be viewed.', 'fluent-security'), ['status' => 400, 'data' => $displayName]);
+            }
+        }
+
+        foreach ($backupExtensions as $ext) {
+            if (substr($fileLower, -strlen($ext)) === $ext) {
+                return new \WP_Error('invalid_data', __('This file could not be viewed.', 'fluent-security'), ['status' => 400, 'data' => $displayName]);
+            }
+        }
+
+        if (!file_exists($filePath)) {
+            return new \WP_Error('invalid_data', __('This file could not be viewed.', 'fluent-security'), ['status' => 400, 'data' => $displayName]);
+        }
+
+        $maxFileSize = 2 * 1024 * 1024; // 2MB
+        if (filesize($filePath) > $maxFileSize) {
+            return new \WP_Error('invalid_data', __('This file is too large to be viewed.', 'fluent-security'), ['status' => 400, 'data' => $displayName]);
+        }
+
+        if (!is_readable($filePath)) {
+            return new \WP_Error('invalid_data', __('This file is not readable.', 'fluent-security'), ['status' => 400, 'data' => $displayName]);
+        }
+
+        return true;
+    }
+
+    protected static function readFileContents($filePath)
+    {
+        require_once(ABSPATH . 'wp-admin/includes/file.php');
+        WP_Filesystem();
+        global $wp_filesystem;
+
+        return $wp_filesystem->get_contents($filePath);
     }
 
     public static function updateScheduleScan(\WP_REST_Request $request)

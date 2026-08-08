@@ -1,132 +1,40 @@
-<template>
-    <div class="fls_scanner-widgets">
-        <div class="fls-scanner-widgets">
-            <div class="box dashboard_box">
-                <div class="box_header" style="padding: 10px 15px; font-weight: bold; font-size: 16px;">
-                    {{ $t('Scheduled Scanning') }}
-                </div>
-                <div class="box_body" style="padding: 0px 15px 20px;">
-                    <template v-if="settings.status == 'active'">
-                        <div v-if="settings.auto_scan != 'yes'">
-                            <p style="font-weight: bold;">
-                                {{ $t('Scheduled scanning is currently disabled') }}
-                            </p>
-                            <p>
-                                {{
-                                    $t('__autoscan_promo__')
-                                }}
-                            </p>
-                            <template v-if="settings.status == 'active'">
-                                <el-button v-loading="saving" :disabled="saving" v-if="scheduling.auto_scan != 'yes'"
-                                           type="primary"
-                                           @click="scheduling.auto_scan = 'yes'">
-                                    {{ $t('Enable Auto Scanning') }}
-                                </el-button>
-                                <div v-else>
-                                    <el-form label-position="top" v-model="scheduling">
-                                        <el-form-item :label="$t('Scanning Interval')">
-                                            <el-select v-model="scheduling.scan_interval" :placeholder="$t('Select Interval')">
-                                                <el-option :label="$t('Every Hour')" value="hourly"></el-option>
-                                                <el-option :label="$t('Daily')" value="daily"></el-option>
-                                            </el-select>
-                                        </el-form-item>
-                                        <el-form-item>
-                                            <el-button type="success" @click="saveSchedulingSettings">
-                                                {{ $t('Save') }}
-                                            </el-button>
-                                        </el-form-item>
-                                    </el-form>
-                                </div>
-                            </template>
-                        </div>
-                        <div v-else>
-                            <p style="font-weight: bold;">{{ $t('Scheduled scanning is currently enabled') }}</p>
-                            <p>
-                                {{ $t('__autoscan_active_desc__') }}
-                            </p>
-                            <p>
-                                <b>{{ $t('Scanning Interval') }}:</b> {{ scheduling.scan_interval }} <br/>
-                                <b>{{ $t('Notification Email') }}:</b> {{ settings.account_email_id }}
-                            </p>
-                            <el-button v-loading="saving" :disabled="saving" style="margin-bottom: 15px;"
-                                       @click="disableSchedule">
-                                {{ $t('Disable/Change Auto Scanning') }}
-                            </el-button>
-                        </div>
-                    </template>
-                    <template v-else-if="settings.status == 'self'">
-                        <p style="font-weight: bold;">{{ $t('Scheduled scanning is currently disabled') }}</p>
-                        <p>
-                            {{ $t('Please get a free API key to enable Scheduled Scanning and get notified when FluentAuth detects file changes.') }}</p>
-                        <el-button type="primary" @click="$router.push({name: 'security_scan_register'})">
-                            {{ $t('Setup Auto Scanning') }}
-                        </el-button>
-                    </template>
-                </div>
-            </div>
-
-            <div v-if="settings.status == 'active'" class="box dashboard_box">
-                <div class="box_header" style="padding: 10px 15px; font-weight: bold; font-size: 16px;">
-                    {{ $t('Scanner Status') }}
-                </div>
-                <div class="box_body" style="padding: 20px 15px 20px;">
-                    <p style="font-weight: bold;">{{ $t('Scanner Status') }}: {{ settings.status }}</p>
-                    <template v-if="settings.last_checked_human">
-                        <p style="font-weight: bold;">{{ $t('Last Scanned %s ago', settings.last_checked_human) }}</p>
-                        <p style="font-weight: bold;">{{ $t('Last Scanned Status') }}:
-                            {{ settings.is_ok == 'yes' ? 'OK' : $t('Found changes') }}</p>
-                    </template>
-                    <p v-if="settings.status == 'active'">
-                        {{ $t('If you want to change the notification email address or disable scanning service,') }} <a
-                        v-loading="saving" @click.prevent="resetApi()" href="#">{{ $t('please click here') }}</a>.</p>
-                </div>
-            </div>
-
-            <div v-if="hasIgnores" class="box dashboard_box">
-                <div class="box_header"
-                     style="padding: 10px 15px; font-weight: bold; font-size: 16px;display: flex;align-items: center;justify-content: space-between;">
-                    <span>{{ $t('Ignored Files & Folders') }}</span>
-                    <el-button @click="resetIgnores()" text type="info">
-                        {{ $t('Reset') }}
-                    </el-button>
-                </div>
-                <div class="box_body" style="padding: 20px 15px 20px;">
-                    <div class="fls_file_lists">
-                        <div class="fls_file_item" v-for="folder in ignores.folders" :key="folder">
-                            <div class="fls_file_title">
-                                <el-icon>
-                                    <FolderOpened/>
-                                </el-icon>
-                                <span>{{ folder }}</span>
-                            </div>
-                        </div>
-                        <div class="fls_file_item" v-for="file in ignores.files" :key="file">
-                            <div class="fls_file_title">
-                                <el-icon>
-                                    <Document/>
-                                </el-icon>
-                                <span>{{ file }}</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script type="text/babel">
 import isEmpty from 'lodash/isEmpty';
+import icons from './icons';
 
+/*
+ * The right-hand column: how scanning is set up on this site.
+ *
+ * Deliberately not a second copy of the result. The column beside it is what one scan
+ * found; this is the standing arrangement - whether it runs on its own, where the alert
+ * goes, and what it has been told to stop mentioning.
+ */
 export default {
     name: 'ScannerWidgets',
-    props: ['settings', 'ignores'],
+    props: {
+        settings: {
+            type: Object,
+            required: true
+        },
+        ignores: {
+            type: Object,
+            required: true
+        },
+        /* How much of wp-content the last scan could actually vouch for. */
+        coverage: {
+            type: Object,
+            default: null
+        }
+    },
     data() {
         return {
+            icons,
             scheduling: {
                 auto_scan: this.settings.auto_scan,
-                scan_interval: this.settings.scan_interval,
+                scan_interval: this.settings.scan_interval
             },
+            /* Open only while the interval is being chosen, so the panel is not a form by default. */
+            editingSchedule: false,
             saving: false
         }
     },
@@ -134,17 +42,43 @@ export default {
         hasIgnores() {
             return !isEmpty(this.ignores.folders) || !isEmpty(this.ignores.files);
         },
+        hasCoverage() {
+            return this.coverage && this.coverage.total > 0;
+        },
+        /*
+         * Said as a fraction of everything installed, not of everything checkable. "14 of 14"
+         * out of twenty-six installed plugins would be a true sentence and a misleading one.
+         */
+        coverageLabel() {
+            return this.$t('%s of %s', this.coverage.checked, this.coverage.total);
+        },
+        isScheduled() {
+            return this.settings.status === 'active' && this.settings.auto_scan === 'yes';
+        },
+        intervalLabel() {
+            return this.settings.scan_interval === 'hourly' ? this.$t('Every hour') : this.$t('Daily');
+        },
+        lastScan() {
+            if (!this.settings.last_checked_human) {
+                return this.$t('Not run yet');
+            }
+
+            return this.$t('%s ago', this.settings.last_checked_human);
+        }
     },
     methods: {
         saveSchedulingSettings() {
             this.saving = true;
+            this.scheduling.auto_scan = 'yes';
+
             this.$post('security-scan-settings/scan/update-schedule-scan', this.scheduling)
                 .then(response => {
                     this.$notify.success(response.message);
                     this.settings.auto_scan = response.settings.auto_scan;
                     this.settings.scan_interval = response.settings.scan_interval;
+                    this.editingSchedule = false;
                 })
-                .catch((errors) => {
+                .catch(errors => {
                     this.$handleError(errors);
                 })
                 .finally(() => {
@@ -153,6 +87,7 @@ export default {
         },
         disableSchedule() {
             this.saving = true;
+
             this.$post('security-scan-settings/scan/update-schedule-scan', {
                 auto_scan: 'no',
                 scan_interval: this.scheduling.scan_interval
@@ -163,7 +98,7 @@ export default {
                     this.settings.auto_scan = response.settings.auto_scan;
                     this.settings.scan_interval = response.settings.scan_interval;
                 })
-                .catch((errors) => {
+                .catch(errors => {
                     this.$handleError(errors);
                 })
                 .finally(() => {
@@ -172,13 +107,13 @@ export default {
         },
         resetApi() {
             this.saving = true;
+
             this.$post('security-scan-settings/scan/reset-api')
                 .then(response => {
                     this.$notify.success(response.message);
-                    // reload the page
                     window.location.reload();
                 })
-                .catch((errors) => {
+                .catch(errors => {
                     this.$handleError(errors);
                 })
                 .finally(() => {
@@ -186,31 +121,174 @@ export default {
                 });
         },
         resetIgnores() {
-
             this.$confirm(this.$t('Are you sure you want to reset the ignored files and folders?'), {
                 type: 'warning',
                 showCancelButton: true,
                 cancelButtonText: this.$t('Cancel'),
-                confirmButtonText: this.$t('Yes, Reset'),
+                confirmButtonText: this.$t('Yes, Reset')
             }).then(() => {
                 this.saving = true;
+
                 this.$post('security-scan-settings/scan/reset-ignores')
                     .then(response => {
                         this.$notify.success(response.message);
-                        // reload the page
                         window.location.reload();
                     })
-                    .catch((errors) => {
+                    .catch(errors => {
                         this.$handleError(errors);
                     })
                     .finally(() => {
                         this.saving = false;
                     });
-            })
-                .catch(() => {
-                    // do nothing
-                });
+            }).catch(() => {
+                // Dismissed - nothing to do.
+            });
         }
     }
 }
 </script>
+
+<template>
+    <aside class="fls_page_aside" v-loading="saving">
+        <div class="fls_aside_block">
+            <h3>{{ $t('Scheduled Scanning') }}</h3>
+
+            <!-- Running on a schedule: what it does, and how to stop it. -->
+            <template v-if="isScheduled">
+                <ul class="fls_scan_facts">
+                    <li>
+                        <span class="fls_scan_fact_label">{{ $t('Runs') }}</span>
+                        <span class="fls_scan_fact_value">{{ intervalLabel }}</span>
+                    </li>
+                    <li>
+                        <span class="fls_scan_fact_label">{{ $t('Alerts go to') }}</span>
+                        <span class="fls_scan_fact_value">{{ settings.account_email_id }}</span>
+                    </li>
+                </ul>
+
+                <p class="fls_note">{{ $t('__autoscan_active_desc__') }}</p>
+
+                <div class="fls_scan_aside_actions">
+                    <el-button size="small" :disabled="saving" @click="disableSchedule">
+                        {{ $t('Turn off') }}
+                    </el-button>
+                </div>
+            </template>
+
+            <!-- Has an API key, has not switched scheduling on. -->
+            <template v-else-if="settings.status === 'active'">
+                <p>{{ $t('__autoscan_promo__') }}</p>
+
+                <template v-if="editingSchedule">
+                    <el-form label-position="top">
+                        <el-form-item :label="$t('Scanning Interval')">
+                            <el-select v-model="scheduling.scan_interval"
+                                       :placeholder="$t('Select Interval')">
+                                <el-option :label="$t('Every Hour')" value="hourly"/>
+                                <el-option :label="$t('Daily')" value="daily"/>
+                            </el-select>
+                        </el-form-item>
+                    </el-form>
+
+                    <div class="fls_scan_aside_actions">
+                        <el-button type="primary" size="small" :disabled="saving"
+                                   @click="saveSchedulingSettings">
+                            {{ $t('Save') }}
+                        </el-button>
+                        <el-button size="small" @click="editingSchedule = false">
+                            {{ $t('Cancel') }}
+                        </el-button>
+                    </div>
+                </template>
+
+                <div v-else class="fls_scan_aside_actions">
+                    <el-button type="primary" size="small" @click="editingSchedule = true">
+                        {{ $t('Enable Auto Scanning') }}
+                    </el-button>
+                </div>
+            </template>
+
+            <!-- Scanning without the service: no key, so no alerts to send. -->
+            <template v-else>
+                <p>
+                    {{ $t('Please get a free API key to enable Scheduled Scanning and get notified when FluentAuth detects file changes.') }}
+                </p>
+
+                <div class="fls_scan_aside_actions">
+                    <el-button type="primary" size="small"
+                               @click="$router.push({name: 'security_scan_register'})">
+                        {{ $t('Setup Auto Scanning') }}
+                    </el-button>
+                </div>
+            </template>
+        </div>
+
+        <div class="fls_aside_block">
+            <h3>{{ $t('Last Scan') }}</h3>
+
+            <ul class="fls_scan_facts">
+                <li>
+                    <span class="fls_scan_fact_label">{{ $t('Ran') }}</span>
+                    <span class="fls_scan_fact_value">{{ lastScan }}</span>
+                </li>
+                <li v-if="settings.last_checked_human">
+                    <span class="fls_scan_fact_label">{{ $t('Result') }}</span>
+                    <span class="fls_scan_fact_value">
+                        <span class="fls_tag" :class="settings.is_ok === 'yes' ? 'is_success' : 'is_warning'">
+                            {{ settings.is_ok === 'yes' ? $t('No changes') : $t('Found changes') }}
+                        </span>
+                    </span>
+                </li>
+            </ul>
+
+            <p v-if="settings.status === 'active'" class="fls_note">
+                {{ $t('If you want to change the notification email address or disable scanning service,') }}
+                <a href="#" @click.prevent="resetApi()">{{ $t('please click here') }}</a>.
+            </p>
+        </div>
+
+        <!--
+            What the scan was able to cover. Only plugins and themes from the WordPress.org
+            directory have an official copy to compare against, so this is where the shortfall
+            gets stated plainly rather than left to be inferred from a clean result.
+        -->
+        <div v-if="hasCoverage" class="fls_aside_block">
+            <h3>{{ $t('Plugins & Themes') }}</h3>
+
+            <ul class="fls_scan_facts">
+                <li>
+                    <span class="fls_scan_fact_label">{{ $t('Verified') }}</span>
+                    <span class="fls_scan_fact_value">{{ coverageLabel }}</span>
+                </li>
+                <li v-if="coverage.with_issues">
+                    <span class="fls_scan_fact_label">{{ $t('With changes') }}</span>
+                    <span class="fls_scan_fact_value">
+                        <span class="fls_tag is_warning">{{ coverage.with_issues }}</span>
+                    </span>
+                </li>
+            </ul>
+
+            <p v-if="coverage.unverifiable" class="fls_note">
+                {{ $_n('%s item is not from the WordPress.org directory, so there are no official checksums to compare it against.', '%s items are not from the WordPress.org directory, so there are no official checksums to compare them against.', coverage.unverifiable) }}
+            </p>
+        </div>
+
+        <div v-if="hasIgnores" class="fls_aside_block">
+            <h3>
+                {{ $t('Ignored Files & Folders') }}
+                <el-button text size="small" @click="resetIgnores()">{{ $t('Reset') }}</el-button>
+            </h3>
+
+            <ul class="fls_scan_ignores">
+                <li v-for="folder in ignores.folders" :key="folder">
+                    <span v-html="icons.folder"></span>
+                    <span>{{ folder }}</span>
+                </li>
+                <li v-for="file in ignores.files" :key="file">
+                    <span v-html="icons.file"></span>
+                    <span>{{ file }}</span>
+                </li>
+            </ul>
+        </div>
+    </aside>
+</template>

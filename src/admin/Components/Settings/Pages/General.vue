@@ -35,39 +35,18 @@ export default {
     methods: {
         applyRecommended() {
             /*
-             * Spread what is already saved first. Saving replaces the whole option, so
-             * a key missing from this literal is a key erased.
+             * The recommendations come from the server, not from a literal here. They are
+             * also what the dashboard's security checklist scores a site against, and this
+             * button used to carry its own copy of them - which is exactly how the two came
+             * to disagree about application passwords. See Helper::getRecommendedSettings(),
+             * which documents what it deliberately leaves out and why.
+             *
+             * Spread what is already saved first: saving replaces the whole option, so a
+             * key missing from the result is a key erased.
              */
             this.settings = {
                 ...this.settings,
-                disable_xmlrpc: 'yes',
-                disable_app_login: 'no',
-                disable_users_rest: 'yes',
-                secure_signup_form: 'yes',
-                login_try_limit: 5,
-                login_try_timing: 30,
-                auto_delete_logs_day: 30,
-                notification_user_roles: ['administrator', 'editor', 'author'],
-                notification_email: '{admin_email}',
-                notify_on_blocked: 'no',
-                magic_login: 'no',
-                magic_restricted_roles: [],
-                magic_link_primary: 'no',
-                email2fa: 'yes',
-                email2fa_roles: ['administrator', 'editor', 'author'],
-                totp_2fa: 'yes',
-                totp_2fa_roles: [],
-                /*
-                 * Recommended, not imposed: forcing enrollment sends people to a setup
-                 * screen they cannot leave, which is not something a button labelled
-                 * "recommended settings" should decide for an administrator.
-                 */
-                totp_required_roles: this.settings.totp_required_roles || [],
-                // disable_admin_bar is derived from this list on save, so it is not set here.
-                disable_bar_roles: ['subscriber'],
-                // Server topology, not a preference - never overwrite it with a default.
-                trusted_proxies: this.settings.trusted_proxies || '',
-                proxy_ip_header: this.settings.proxy_ip_header || ''
+                ...this.appVars.recommended_settings
             };
 
             this.$notify.success(this.$t('Recommended settings have been applied. Review the sections and save.'));

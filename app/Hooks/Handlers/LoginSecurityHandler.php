@@ -4,6 +4,7 @@ namespace FluentAuth\App\Hooks\Handlers;
 
 use FluentAuth\App\Helpers\Arr;
 use FluentAuth\App\Helpers\Helper;
+use FluentAuth\App\Services\IpRules;
 
 class LoginSecurityHandler
 {
@@ -28,6 +29,43 @@ class LoginSecurityHandler
         add_action('application_password_failed_authentication', [$this, 'logFailedAppPasswordAuth'], 10, 1);
 
         add_filter('fluent_auth/2fa_challenge_required', [$this, 'maybeRequireLoginChallenge'], 10, 2);
+
+        /*
+         * A social login never reaches the `authenticate` chain either - AuthService sets
+         * the cookie itself once the provider has vouched for the address. Google saying
+         * who somebody is does not say where they are, so the address restriction has to
+         * be applied here as well or it is one OAuth button away from being bypassed.
+         */
+        add_filter('fluent_auth/can_user_login', [$this, 'maybeDenyRestrictedLocation'], 999, 3);
+    }
+
+    /**
+     * @param $canLogin bool|\WP_Error
+     * @param $user \WP_User
+     * @param $provider string
+     * @return bool|\WP_Error
+     */
+    public function maybeDenyRestrictedLocation($canLogin, $user, $provider = '')
+    {
+        if (is_wp_error($canLogin) || !$canLogin || !IpRules::deniesSignIn($user)) {
+            return $canLogin;
+        }
+
+        $this->logBlockedAuth($user, $user->user_login);
+
+        /*
+         * A plain false rather than a WP_Error when there is no provider: AuthService only
+         * reads an error object on the provider path, and an error returned anywhere else
+         * is truthy enough to be mistaken for permission.
+         */
+        if (!$provider) {
+            return false;
+        }
+
+        return new \WP_Error(
+            'login_error',
+            __('Your account can only be used from an approved location.', 'fluent-security')
+        );
     }
 
     /**
@@ -147,6 +185,22 @@ class LoginSecurityHandler
 
         $username = sanitize_user(wp_unslash($_SERVER['PHP_AUTH_USER']));
 
+        /*
+         * The address restriction is about the account, so this path has to resolve one
+         * before it can apply it - there is no $user here, only whatever was typed into the
+         * Basic auth header. An unknown name is left alone: core will reject it anyway, and
+         * refusing differently for names that exist is how a login form tells an attacker
+         * which accounts are real.
+         */
+        $appUser = get_user_by('login', $username) ?: get_user_by('email', $username);
+
+        if ($appUser && IpRules::deniesSignIn($appUser)) {
+            $this->appPasswordBlocked = true;
+            $this->logBlockedAuth($appUser, $username, 'app_password');
+
+            return false;
+        }
+
         $isLimitExceeded = $this->checkLoginAttempt(null, $username);
 
         $this->appPasswordBlocked = is_wp_error($isLimitExceeded);
@@ -208,6 +262,24 @@ class LoginSecurityHandler
     {
         if (empty($_POST) && !$username) {
             return $user;
+        }
+
+        /*
+         * Deliberately outside the emailed token exemption below.
+         *
+         * That exemption exists so a locked out administrator can get back in with a magic
+         * link, which is right for a rate limit - the limit is about guessing, and somebody
+         * reading their own inbox is not guessing. The address restriction is about *where*
+         * they are, and a rule saying administrators may only sign in from the office is
+         * worth nothing if asking the site to email you a link is a way around it.
+         */
+        if (IpRules::deniesSignIn($user)) {
+            $this->logBlockedAuth($user, $username);
+
+            return new \WP_Error(
+                'login_error',
+                __('Your account can only be used from an approved location.', 'fluent-security')
+            );
         }
 
         /*
@@ -469,6 +541,28 @@ class LoginSecurityHandler
             return true;
         }
 
+        $ip = Helper::getIp();
+
+        /*
+         * The lists are consulted before the attempt limit, and before the limit's own
+         * settings are read, because neither list is part of it: a blocked address stays
+         * blocked on a site that has turned the limit off, and an allowed one is exempt
+         * from counting however the limit is configured.
+         *
+         * Both callers log the outcome after this returns, so a refusal here is still
+         * recorded - see IpRules, which is deliberate about not suppressing that.
+         */
+        if (IpRules::isBlocked($ip)) {
+            return new \WP_Error(
+                'login_error',
+                __('Logins from your network are not permitted on this site.', 'fluent-security')
+            );
+        }
+
+        if (IpRules::isAllowed($ip)) {
+            return true;
+        }
+
         $minutes = Helper::getSetting('login_try_timing');
         $limit = Helper::getSetting('login_try_limit');
 
@@ -477,7 +571,6 @@ class LoginSecurityHandler
         }
 
         global $wpdb;
-        $ip = Helper::getIp();
         $dateTime = date('Y-m-d H:i:s', current_time('timestamp') - $minutes * 60);
 
         // check if already blocked then no need to create a new row

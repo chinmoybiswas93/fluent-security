@@ -123,11 +123,14 @@ class SettingsController
 
         /*
          * A role cannot be made to set up an authenticator app unless it is also allowed
-         * one - that would be a policy demanding something the profile screen refuses to
-         * offer, which is a locked out user rather than a secured one. An empty allow
-         * list means every role, so nothing can conflict with it.
+         * one - that would be a policy demanding something the setup screen refuses to
+         * offer, which is a locked out user rather than a secured one.
+         *
+         * An empty allow list means nobody may, so it conflicts with every required role
+         * rather than with none of them - which is why this is not guarded on the allow
+         * list being non-empty.
          */
-        if (!empty($settings['totp_required_roles']) && !empty($settings['totp_2fa_roles'])) {
+        if (!empty($settings['totp_required_roles'])) {
             $undeclared = array_diff((array)$settings['totp_required_roles'], (array)$settings['totp_2fa_roles']);
 
             if ($undeclared) {

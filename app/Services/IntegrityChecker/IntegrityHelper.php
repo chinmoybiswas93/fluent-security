@@ -37,6 +37,158 @@ class IntegrityHelper
         return update_option('__fls_integrity_settings', $settings, false);
     }
 
+    /*
+     * What the last scan found in each plugin and theme, keyed by type and file.
+     *
+     * Core's findings are deliberately not kept - the screen re-scans on arrival and core is
+     * one cheap request. Extensions are not cheap, so their results are stored: it is what
+     * lets the aside say "44 of 47 verified" without walking wp-content again, and what lets
+     * the scheduled scan work through a big site across several runs instead of trying to
+     * finish inside one.
+     */
+    public static function getExtensionResults()
+    {
+        $results = get_option('__fls_integrity_extension_results', []);
+
+        return is_array($results) ? $results : [];
+    }
+
+    public static function saveExtensionResults($results)
+    {
+        return update_option('__fls_integrity_extension_results', $results, false);
+    }
+
+    /*
+     * File a single extension's result, replacing whatever was known about it before.
+     *
+     * The finding list is capped. A plugin whose folder has been emptied, or whose version
+     * header no longer matches its contents, can report thousands of files at once, and none
+     * of that belongs in an option row - past the cap the count is kept and the paths are not.
+     */
+    public static function storeExtensionResult($result)
+    {
+        $maxFiles = apply_filters('fluent_auth/integrity_max_extension_findings', 300);
+
+        $files = isset($result['files']) && is_array($result['files']) ? $result['files'] : [];
+        $result['total_files'] = count($files);
+        $result['truncated'] = 0;
+
+        if ($result['total_files'] > $maxFiles) {
+            $result['files'] = array_slice($files, 0, $maxFiles, true);
+            $result['truncated'] = $result['total_files'] - $maxFiles;
+        }
+
+        $results = self::getExtensionResults();
+        $results[self::getResultKey($result)] = $result;
+
+        self::saveExtensionResults($results);
+
+        return $result;
+    }
+
+    public static function getResultKey($target)
+    {
+        return $target['type'] . ':' . $target['key'];
+    }
+
+    /*
+     * Extension findings the site has not already accepted, as flat root-relative paths.
+     *
+     * The ignore list is one list for the whole scan, holding core and extension paths alike,
+     * so an extension finding has to be named the same way a core one is - relative to the
+     * WordPress root, with the leading slash the browser stores.
+     */
+    public static function getActiveExtensionFindings()
+    {
+        $ignored = array_map(function ($file) {
+            return ltrim($file, '/');
+        }, Arr::get(self::getIgnoreLists(), 'files', []));
+
+        $active = [];
+
+        foreach (self::getExtensionResults() as $result) {
+            if (empty($result['verifiable']) || empty($result['files'])) {
+                continue;
+            }
+
+            foreach ($result['files'] as $file => $data) {
+                $fullPath = trim($result['rel_path'], '/') . '/' . $file;
+
+                if (in_array($fullPath, $ignored, true)) {
+                    continue;
+                }
+
+                $data['extension'] = $result['name'];
+                $data['extension_type'] = $result['type'];
+                $active[$fullPath] = $data;
+            }
+        }
+
+        return $active;
+    }
+
+    /*
+     * How much of wp-content the last scan was actually able to vouch for.
+     *
+     * Counted against what is installed now, not against what happens to be in the stored
+     * results. An interactive scan only asks the server about the extensions it can check, so
+     * the premium and custom ones leave no result behind - and a summary built from results
+     * alone would put the denominator at the number it managed to verify and report perfect
+     * coverage. The blind spot has to be counted from the inventory to be counted at all.
+     */
+    public static function getExtensionSummary()
+    {
+        $results = self::getExtensionResults();
+
+        $summary = [
+            'total'        => 0,
+            'verifiable'   => 0,
+            'checked'      => 0,
+            'unverifiable' => 0,
+            'with_issues'  => 0,
+            'files'        => 0
+        ];
+
+        foreach (ExtensionInventory::getTargets() as $target) {
+            $summary['total']++;
+
+            /*
+             * Indexed directly, not through Arr::get(): a result key holds a plugin's own file
+             * name, so it contains dots, and dot-notation lookup would read
+             * "plugin:akismet/akismet.php" as a path into a nested array and find nothing.
+             */
+            $key = self::getResultKey($target);
+            $result = isset($results[$key]) ? $results[$key] : null;
+
+            /*
+             * Unverifiable either because there is no official copy of it, or because the one
+             * there should have been could not be had - an unpublished version, a failed
+             * download. Both are "we could not check this", which is the number that matters.
+             */
+            if (empty($target['verifiable']) || ($result && empty($result['verifiable']))) {
+                $summary['unverifiable']++;
+                continue;
+            }
+
+            $summary['verifiable']++;
+
+            if (!$result) {
+                continue; // checkable, but this scan has not reached it yet
+            }
+
+            $summary['checked']++;
+
+            $count = isset($result['total_files']) ? (int)$result['total_files'] : count(Arr::get($result, 'files', []));
+
+            if ($count) {
+                $summary['with_issues']++;
+                $summary['files'] += $count;
+            }
+        }
+
+        return $summary;
+    }
+
     public static function getIgnoreLists()
     {
         $ignoreLists = get_option('__fls_integrity_ignore_lists', []);
@@ -87,9 +239,18 @@ class IntegrityHelper
         $modifiedFiles = $checkerService->getActiveModifiedFiles(false);
         $modifiedFolders = $checkerService->getActiveModifiedFolders();
 
+        /*
+         * Then as much of wp-content as fits in the budget, picking up where the last run
+         * stopped, so a site with sixty plugins gets covered across a few runs rather than
+         * timing out on every one of them and reporting nothing.
+         */
+        self::scanExtensionBatch();
+
+        $modifiedExtensionFiles = self::getActiveExtensionFindings();
+
         $settings['last_report_sent'] = date('Y-m-d H:i:s');
         $settings['last_checked'] = date('Y-m-d H:i:s');
-        $settings['is_ok'] = (!$modifiedFolders && !$modifiedFiles) ? 'yes' : 'no';
+        $settings['is_ok'] = (!$modifiedFolders && !$modifiedFiles && !$modifiedExtensionFiles) ? 'yes' : 'no';
         self::saveSettings($settings);
 
         if ($settings['is_ok'] === 'yes') {
@@ -103,10 +264,76 @@ class IntegrityHelper
             'site_url'         => str_replace(['https://', 'http://'], '', site_url()),
             'admin_url'        => admin_url('admin.php?page=fluent-auth#/'),
             'site_title'       => get_bloginfo('name'),
-            'modified_files'   => $modifiedFiles,
+            'modified_files'   => array_merge($modifiedFiles, $modifiedExtensionFiles),
             'modified_folders' => $modifiedFolders
         ];
 
         return Api::sendPostRequest('send-security-email/', $payload);
+    }
+
+    /*
+     * Check as many plugins and themes as a cron run can afford.
+     *
+     * Least-recently-checked first, which needs no cursor of its own: the stored results carry
+     * the timestamps, so adding or removing a plugin reorders the queue on its own instead of
+     * invalidating a saved position. Anything never checked sorts to the front.
+     */
+    public static function scanExtensionBatch($budgetSeconds = null)
+    {
+        if ($budgetSeconds === null) {
+            $budgetSeconds = apply_filters('fluent_auth/integrity_scan_budget', 20);
+        }
+
+        $targets = ExtensionInventory::getTargets();
+
+        if (!$targets) {
+            return 0;
+        }
+
+        $results = self::getExtensionResults();
+
+        /*
+         * Indexed directly rather than through Arr::get() - see getExtensionSummary(). Reading
+         * these with dot notation silently returned "never checked" for every plugin, so every
+         * run re-scanned the same handful and the queue never advanced.
+         */
+        $checkedAt = function ($target) use ($results) {
+            $key = self::getResultKey($target);
+
+            return isset($results[$key]['checked_at']) ? (string)$results[$key]['checked_at'] : '';
+        };
+
+        usort($targets, function ($a, $b) use ($checkedAt) {
+            return strcmp($checkedAt($a), $checkedAt($b));
+        });
+
+        /* A stale entry for something no longer installed would keep counting forever. */
+        self::forgetMissingExtensions($targets);
+
+        $checker = new ExtensionChecker();
+        $startedAt = time();
+        $scanned = 0;
+
+        foreach ($targets as $target) {
+            self::storeExtensionResult($checker->scan($target));
+            $scanned++;
+
+            if ((time() - $startedAt) >= $budgetSeconds) {
+                break;
+            }
+        }
+
+        return $scanned;
+    }
+
+    protected static function forgetMissingExtensions($targets)
+    {
+        $installed = array_map([self::class, 'getResultKey'], $targets);
+        $results = self::getExtensionResults();
+        $kept = array_intersect_key($results, array_flip($installed));
+
+        if (count($kept) !== count($results)) {
+            self::saveExtensionResults($kept);
+        }
     }
 }

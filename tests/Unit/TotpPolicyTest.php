@@ -4,6 +4,7 @@ namespace FluentAuth\Tests\Unit;
 
 use FluentAuth\App\Helpers\Helper;
 use FluentAuth\App\Hooks\Handlers\TotpEnforcementHandler;
+use FluentAuth\App\Hooks\Handlers\TotpSetupPageHandler;
 use FluentAuth\App\Services\TwoFa\TotpProvider;
 use FluentAuth\App\Services\TwoFa\TotpTwoFaMethod;
 
@@ -54,10 +55,14 @@ class TotpPolicyTest extends BaseTestCase
         $this->assertFalse(TotpTwoFaMethod::isAllowedForUser($this->admin));
     }
 
-    public function testAnEmptyAllowListMeansEveryRoleRatherThanNobody()
+    /**
+     * Naming the roles is how the method is turned on. Read the other way, flipping the
+     * switch alone would hand an authenticator app to every subscriber on the site.
+     */
+    public function testAnEmptyAllowListMeansNobodyRatherThanEveryRole()
     {
-        $this->assertTrue(TotpTwoFaMethod::isAllowedForUser($this->admin));
-        $this->assertTrue(TotpTwoFaMethod::isAllowedForUser($this->subscriber));
+        $this->assertFalse(TotpTwoFaMethod::isAllowedForUser($this->admin));
+        $this->assertFalse(TotpTwoFaMethod::isAllowedForUser($this->subscriber));
     }
 
     public function testNamingRolesRestrictsItToThem()
@@ -75,10 +80,22 @@ class TotpPolicyTest extends BaseTestCase
 
     public function testARequiredRoleIsRequired()
     {
-        $this->policy('yes', [], ['administrator']);
+        $this->policy('yes', ['administrator'], ['administrator']);
 
         $this->assertTrue(TotpTwoFaMethod::isRequiredForUser($this->admin));
         $this->assertFalse(TotpTwoFaMethod::isRequiredForUser($this->subscriber));
+    }
+
+    /**
+     * Requiring a role that is offered nothing is the locked-out case, and an empty
+     * allow list offers nothing to anybody - so it cannot be the one shape of that
+     * mistake the policy waves through.
+     */
+    public function testARoleCannotBeRequiredWhileNoRoleIsAllowed()
+    {
+        $this->policy('yes', [], ['administrator']);
+
+        $this->assertFalse(TotpTwoFaMethod::isRequiredForUser($this->admin));
     }
 
     /**
@@ -111,6 +128,8 @@ class TotpPolicyTest extends BaseTestCase
      */
     public function testRemovingARoleStopsTheMethodBeingUsedByItsMembers()
     {
+        $this->policy('yes', ['administrator'], []);
+
         TotpTwoFaMethod::activate($this->admin, TotpProvider::generateSecret());
 
         $method = new TotpTwoFaMethod();
@@ -135,7 +154,7 @@ class TotpPolicyTest extends BaseTestCase
 
     public function testAnUnenrolledRequiredUserIsGated()
     {
-        $this->policy('yes', [], ['administrator']);
+        $this->policy('yes', ['administrator'], ['administrator']);
         wp_set_current_user($this->admin->ID);
 
         $this->assertTrue((new TotpEnforcementHandler())->needsEnrollment());
@@ -143,7 +162,7 @@ class TotpPolicyTest extends BaseTestCase
 
     public function testEnrollingClearsTheGate()
     {
-        $this->policy('yes', [], ['administrator']);
+        $this->policy('yes', ['administrator'], ['administrator']);
         wp_set_current_user($this->admin->ID);
 
         TotpTwoFaMethod::activate($this->admin, TotpProvider::generateSecret());
@@ -153,7 +172,7 @@ class TotpPolicyTest extends BaseTestCase
 
     public function testAUserWhoseRoleIsNotRequiredIsNeverGated()
     {
-        $this->policy('yes', [], ['administrator']);
+        $this->policy('yes', ['administrator'], ['administrator']);
         wp_set_current_user($this->subscriber->ID);
 
         $this->assertFalse((new TotpEnforcementHandler())->needsEnrollment());
@@ -161,7 +180,7 @@ class TotpPolicyTest extends BaseTestCase
 
     public function testLoggedOutRequestsAreNeverGated()
     {
-        $this->policy('yes', [], ['administrator']);
+        $this->policy('yes', ['administrator'], ['administrator']);
         wp_set_current_user(0);
 
         $this->assertFalse((new TotpEnforcementHandler())->needsEnrollment());
@@ -173,7 +192,7 @@ class TotpPolicyTest extends BaseTestCase
      */
     public function testAjaxRequestsAreNotRedirected()
     {
-        $this->policy('yes', [], ['administrator']);
+        $this->policy('yes', ['administrator'], ['administrator']);
         wp_set_current_user($this->admin->ID);
 
         add_filter('wp_doing_ajax', '__return_true');
@@ -181,5 +200,80 @@ class TotpPolicyTest extends BaseTestCase
         $this->assertFalse((new TotpEnforcementHandler())->needsEnrollment());
 
         remove_filter('wp_doing_ajax', '__return_true');
+    }
+
+    /**
+     * The gate shuts the admin area, so it cannot send people into the admin area to
+     * get past it. On a site that keeps a role out of wp-admin altogether, a redirect
+     * to their profile is a redirect straight back out again with nothing set up.
+     */
+    public function testTheGateSendsPeopleToTheStandaloneSetupScreen()
+    {
+        $this->policy('yes', ['administrator'], ['administrator']);
+        wp_set_current_user($this->admin->ID);
+
+        $location = $this->captureRedirect(function () {
+            (new TotpEnforcementHandler())->maybeForceEnrollment();
+        });
+
+        $this->assertStringContainsString('wp-login.php', (string)parse_url($location, PHP_URL_PATH));
+        $this->assertStringNotContainsString('profile.php', $location);
+
+        parse_str((string)parse_url($location, PHP_URL_QUERY), $query);
+
+        $this->assertSame(TotpSetupPageHandler::LOGIN_ACTION, $query['action']);
+        $this->assertSame(
+            admin_url(),
+            urldecode($query['redirect_to']),
+            'They were trying to use the admin area, so that is where finishing should return them.'
+        );
+    }
+
+    public function testSomebodyAlreadyEnrollingOnTheirProfileIsLeftThere()
+    {
+        global $pagenow;
+
+        $this->policy('yes', ['administrator'], ['administrator']);
+        wp_set_current_user($this->admin->ID);
+
+        $was = $pagenow;
+        $pagenow = 'profile.php';
+
+        $location = $this->captureRedirect(function () {
+            (new TotpEnforcementHandler())->maybeForceEnrollment();
+        });
+
+        $pagenow = $was;
+
+        $this->assertNull($location, 'Pulling somebody off the form mid-enrollment loses the pending secret.');
+    }
+
+    /**
+     * maybeForceEnrollment() ends in exit(), so the redirect is intercepted at the
+     * filter and unwound before it gets there.
+     *
+     * @param $callback callable
+     * @return string|null where it tried to send the user, or null if it did not
+     */
+    private function captureRedirect($callback)
+    {
+        $captured = null;
+
+        $catch = function ($location) use (&$captured) {
+            $captured = $location;
+            throw new \RuntimeException('redirected');
+        };
+
+        add_filter('wp_redirect', $catch);
+
+        try {
+            $callback();
+        } catch (\RuntimeException $e) {
+            // Expected: this is how the exit() below the redirect is escaped.
+        } finally {
+            remove_filter('wp_redirect', $catch);
+        }
+
+        return $captured;
     }
 }

@@ -3,6 +3,7 @@
 namespace FluentAuth\Tests\Unit;
 
 use FluentAuth\App\Helpers\Activator;
+use FluentAuth\App\Helpers\Helper;
 
 class ActivatorTest extends BaseTestCase
 {
@@ -115,5 +116,67 @@ class ActivatorTest extends BaseTestCase
         } catch (\Exception $e) {
             $this->fail('Activation hook failed: ' . $e->getMessage());
         }
+    }
+
+    private function migrateTotpRoles()
+    {
+        $reflection = new \ReflectionClass(Activator::class);
+        $method = $reflection->getMethod('migrateTotpAllowedRoles');
+        $method->setAccessible(true);
+        $method->invoke(null);
+
+        Helper::resetStatics();
+    }
+
+    /**
+     * An empty allow list used to mean every role and now means none. On a site that had
+     * the method switched on with the field untouched, reading it the new way stops
+     * asking enrolled users for the app they already set up - so the old meaning is
+     * written out as roles before the new reading applies to it.
+     */
+    public function testItWritesOutWhatAnEmptyAllowListUsedToMean()
+    {
+        update_option('__fls_auth_settings', array_merge(Helper::getAuthSettings(), [
+            'totp_2fa'       => 'yes',
+            'totp_2fa_roles' => []
+        ]));
+        Helper::resetStatics();
+
+        $this->migrateTotpRoles();
+
+        $roles = Helper::getSetting('totp_2fa_roles');
+
+        $this->assertContains('administrator', $roles);
+        $this->assertContains('subscriber', $roles, 'It meant every role, so every role is what it becomes.');
+    }
+
+    public function testItLeavesAChosenListAlone()
+    {
+        update_option('__fls_auth_settings', array_merge(Helper::getAuthSettings(), [
+            'totp_2fa'       => 'yes',
+            'totp_2fa_roles' => ['editor']
+        ]));
+        Helper::resetStatics();
+
+        $this->migrateTotpRoles();
+
+        $this->assertSame(['editor'], Helper::getSetting('totp_2fa_roles'));
+    }
+
+    /**
+     * With the method switched off the empty list never meant anything, so filling it in
+     * would invent a policy the site never had.
+     */
+    public function testItLeavesTheListEmptyWhileTheMethodIsOff()
+    {
+        update_option('__fls_auth_settings', array_merge(Helper::getAuthSettings(), [
+            'totp_2fa'       => 'no',
+            'totp_2fa_roles' => []
+        ]));
+        Helper::resetStatics();
+
+        $this->migrateTotpRoles();
+
+        $this->assertSame([], Helper::getSetting('totp_2fa_roles'));
     }
 }

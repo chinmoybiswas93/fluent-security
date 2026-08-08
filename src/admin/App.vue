@@ -1,6 +1,11 @@
 <script type="text/babel">
+import ThemeSwitch from './Bits/ThemeSwitch.vue';
+
 export default {
     name: 'FluentAuthApp',
+    components: {
+        ThemeSwitch
+    },
     data() {
         return {
             scrolled: false,
@@ -108,6 +113,7 @@ export default {
 
             <div class="fls_app_bar_actions">
                 <slot name="actions"/>
+                <theme-switch/>
             </div>
         </div>
 

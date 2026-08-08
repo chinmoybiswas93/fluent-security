@@ -186,7 +186,7 @@ export default {
 
 <style lang="scss">
 .fls_rule {
-    border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+    border: 1px solid var(--el-border-color-lighter, var(--fls-border));
     border-radius: 4px;
     padding: 16px;
     margin: 16px 0;
@@ -209,7 +209,7 @@ export default {
 
     .fls_then {
         font-size: 12px;
-        color: #909399;
+        color: var(--fls-text-light);
         margin: 12px 0;
     }
 }

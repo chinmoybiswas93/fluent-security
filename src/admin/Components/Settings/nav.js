@@ -24,7 +24,8 @@ const icons = {
     form: icon('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h4"/>'),
     redirect: icon('<path d="M4 7h11a5 5 0 0 1 0 10H9"/><path d="M12 14l-3 3 3 3"/>'),
     mail: icon('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'),
-    server: icon('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>')
+    server: icon('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>'),
+    shieldCheck: icon('<path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/>')
 };
 
 /**
@@ -49,6 +50,11 @@ export const settingsNav = (vm) => [
         route: 'settings_two_fa_enrollment',
         title: vm.$t('2FA Enrollment'),
         icon: icons.users
+    },
+    {
+        route: 'settings_ip_rules',
+        title: vm.$t('IP Access Rules'),
+        icon: icons.shieldCheck
     },
     {
         route: 'settings_social_login',

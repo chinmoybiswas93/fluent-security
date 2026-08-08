@@ -592,4 +592,293 @@ class LoginSecurityHandlerTest extends BaseTestCase
             has_action('application_password_failed_authentication', [$this->handler, 'logFailedAppPasswordAuth'])
         );
     }
+
+    // ------------------------------------------------------------- IP allow / block
+
+    /**
+     * The lists are checked at the same choke point the attempt limit uses, so these pin
+     * down that both login routes honour them - and, for the allow list, that it changes
+     * only whether the attempt is counted.
+     *
+     * A public REMOTE_ADDR is set first: the allow list refuses to apply while the site's
+     * addresses are ambiguous, and the test suite's default loopback address is exactly
+     * that case.
+     */
+    private function fromPublicAddress()
+    {
+        $_SERVER['REMOTE_ADDR'] = '198.51.100.20';
+        Helper::resetStatics();
+
+        return '198.51.100.20';
+    }
+
+    public function testAnAllowedAddressIsNotLockedOutByTheAttemptLimit()
+    {
+        $ip = $this->fromPublicAddress();
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->seedFailedAttempts(20);
+
+        // Control: without the allow list this address is well past the limit.
+        $this->assertWpErrorWithCode(
+            $this->handler->maybeCheckLoginAttempts($user, $user->user_login, 'pw'),
+            'login_error'
+        );
+
+        \FluentAuth\App\Services\IpRules::save(['allow' => [['ip' => $ip]], 'block' => []]);
+
+        $this->assertSame(
+            $user,
+            (new LoginSecurityHandler())->maybeCheckLoginAttempts($user, $user->user_login, 'pw')
+        );
+    }
+
+    public function testTheAllowListReachesTheApplicationPasswordPathToo()
+    {
+        $ip = $this->fromPublicAddress();
+
+        $this->seedFailedAttempts(20);
+
+        $_SERVER['PHP_AUTH_USER'] = 'admin';
+        $_SERVER['PHP_AUTH_PW'] = 'wrong password';
+
+        $this->assertFalse($this->handler->maybeBlockAppPasswordAuth(true));
+
+        \FluentAuth\App\Services\IpRules::save(['allow' => [['ip' => $ip]], 'block' => []]);
+
+        $this->assertTrue((new LoginSecurityHandler())->maybeBlockAppPasswordAuth(true));
+    }
+
+    /**
+     * Blocks an address the way an administrator would: from their own, which is a
+     * different one - the list refuses to store a rule covering whoever is saving it.
+     *
+     * @param string $range
+     * @return void
+     */
+    private function blockFromElsewhere($range)
+    {
+        $_SERVER['REMOTE_ADDR'] = '198.51.100.20';
+        Helper::resetStatics();
+
+        $saved = \FluentAuth\App\Services\IpRules::save(['allow' => [], 'block' => [['ip' => $range]]]);
+
+        $this->assertIsArray($saved, 'the block list should have saved');
+    }
+
+    /**
+     * @param string $ip
+     * @return void
+     */
+    private function arriveFrom($ip)
+    {
+        $_SERVER['REMOTE_ADDR'] = $ip;
+        Helper::resetStatics();
+    }
+
+    public function testABlockedAddressIsRefusedEvenWithNoFailuresAtAll()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->blockFromElsewhere('45.148.10.0/24');
+        $this->arriveFrom('45.148.10.72');
+
+        $this->assertEquals(0, $this->countRows('failed'));
+
+        $this->assertWpErrorWithCode(
+            (new LoginSecurityHandler())->maybeCheckLoginAttempts($user, $user->user_login, 'pw'),
+            'login_error'
+        );
+    }
+
+    /**
+     * The block list is not part of the attempt limit, so switching that off must not
+     * switch this off with it.
+     */
+    public function testABlockedAddressIsRefusedEvenWhenTheAttemptLimitIsDisabled()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->blockFromElsewhere('45.148.10.72');
+
+        $settings = get_option('__fls_auth_settings');
+        $settings['login_try_limit'] = 0;
+        $settings['login_try_timing'] = 0;
+        update_option('__fls_auth_settings', $settings);
+
+        $this->arriveFrom('45.148.10.72');
+
+        $this->assertWpErrorWithCode(
+            (new LoginSecurityHandler())->maybeCheckLoginAttempts($user, $user->user_login, 'pw'),
+            'login_error'
+        );
+    }
+
+    public function testAnAddressOutsideTheBlockedRangeIsUntouched()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->blockFromElsewhere('45.148.10.0/24');
+        $this->arriveFrom('45.148.11.72');
+
+        $this->assertSame(
+            $user,
+            (new LoginSecurityHandler())->maybeCheckLoginAttempts($user, $user->user_login, 'pw')
+        );
+    }
+
+    // ------------------------------------------------ restricting a role by address
+
+    /**
+     * @param string $role
+     * @return \WP_User
+     */
+    private function restrictRoleToOfficeAddress($role = 'administrator')
+    {
+        $this->assertFalse(
+            defined('FLUENT_AUTH_DISABLE_IP_RESTRICTION'),
+            'the wp-config escape hatch leaked from an earlier test, so this proves nothing'
+        );
+
+        $_SERVER['REMOTE_ADDR'] = '198.51.100.20';
+        Helper::resetStatics();
+
+        $saved = \FluentAuth\App\Services\IpRules::save([
+            'allow'            => [['ip' => '198.51.100.20', 'label' => 'Office']],
+            'block'            => [],
+            'restricted_roles' => [$role]
+        ]);
+
+        $this->assertIsArray($saved, 'the restriction should have saved');
+
+        return $this->factory->user->create_and_get(['role' => $role]);
+    }
+
+    public function testARestrictedRoleIsRefusedFromAnywhereElse()
+    {
+        $admin = $this->restrictRoleToOfficeAddress();
+
+        // From the listed address it is an ordinary login.
+        $this->assertSame(
+            $admin,
+            (new LoginSecurityHandler())->maybeCheckLoginAttempts($admin, $admin->user_login, 'pw')
+        );
+
+        $this->arriveFrom('45.148.10.72');
+
+        $this->assertWpErrorWithCode(
+            (new LoginSecurityHandler())->maybeCheckLoginAttempts($admin, $admin->user_login, 'pw'),
+            'login_error'
+        );
+        $this->assertEquals(1, $this->countRows('blocked'));
+    }
+
+    public function testAnUnrestrictedRoleSignsInFromAnywhere()
+    {
+        $this->restrictRoleToOfficeAddress('administrator');
+        $subscriber = $this->factory->user->create_and_get(['role' => 'subscriber']);
+
+        $this->arriveFrom('45.148.10.72');
+
+        $this->assertSame(
+            $subscriber,
+            (new LoginSecurityHandler())->maybeCheckLoginAttempts($subscriber, $subscriber->user_login, 'pw')
+        );
+    }
+
+    /**
+     * The exemption that lets a locked out administrator back in with a magic link must not
+     * also be a way around "administrators may only sign in from the office".
+     */
+    public function testAMagicLinkDoesNotGetRoundTheAddressRestriction()
+    {
+        $admin = $this->restrictRoleToOfficeAddress();
+
+        $this->arriveFrom('45.148.10.72');
+
+        Helper::setTokenVerifiedLogin(true);
+
+        $result = (new LoginSecurityHandler())->maybeCheckLoginAttempts($admin, $admin->user_login, 'pw');
+
+        Helper::setTokenVerifiedLogin(false);
+
+        $this->assertWpErrorWithCode($result, 'login_error');
+    }
+
+    /**
+     * A provider vouching for who somebody is says nothing about where they are, and social
+     * logins never reach the authenticate chain.
+     */
+    public function testASocialLoginDoesNotGetRoundTheAddressRestrictionEither()
+    {
+        $admin = $this->restrictRoleToOfficeAddress();
+        $handler = new LoginSecurityHandler();
+
+        $this->assertTrue($handler->maybeDenyRestrictedLocation(true, $admin, 'google'));
+
+        $this->arriveFrom('45.148.10.72');
+
+        $this->assertWpErrorWithCode(
+            $handler->maybeDenyRestrictedLocation(true, $admin, 'google'),
+            'login_error'
+        );
+
+        // Without a provider AuthService only understands a plain false as a refusal.
+        $this->assertFalse($handler->maybeDenyRestrictedLocation(true, $admin, ''));
+    }
+
+    public function testTheRestrictionReachesApplicationPasswordsToo()
+    {
+        $admin = $this->restrictRoleToOfficeAddress();
+
+        $_SERVER['PHP_AUTH_USER'] = $admin->user_login;
+        $_SERVER['PHP_AUTH_PW'] = 'an application password';
+
+        $this->assertTrue((new LoginSecurityHandler())->maybeBlockAppPasswordAuth(true));
+
+        $this->arriveFrom('45.148.10.72');
+
+        $this->assertFalse((new LoginSecurityHandler())->maybeBlockAppPasswordAuth(true));
+    }
+
+
+    /**
+     * Refusing the login must not skip the record: the dashboard's view of who is
+     * attacking the site is built entirely out of these rows.
+     */
+    public function testARefusedAttemptFromABlockedAddressIsStillLogged()
+    {
+        $user = $this->factory->user->create_and_get(['role' => 'administrator']);
+
+        $this->blockFromElsewhere('45.148.10.72');
+        $this->arriveFrom('45.148.10.72');
+
+        (new LoginSecurityHandler())->maybeCheckLoginAttempts($user, $user->user_login, 'pw');
+
+        $this->assertEquals(1, $this->countRows('blocked'));
+    }
+
+    /**
+     * The wp-config escape hatch, the way back in when the list is wrong and nobody can log
+     * in to change it.
+     *
+     * KEEP THIS LAST. A constant cannot be undefined, so from here on the restriction is
+     * switched off for everything that runs afterwards in this process. Running it in a
+     * separate process is not the answer either: the child runs wpTearDownAfterClass on its
+     * way out, which drops the log tables, and DDL does not roll back - the parent is left
+     * without them. Anything relying on the restriction asserts the constant is absent
+     * first, so a leak fails loudly rather than passing quietly.
+     */
+    public function testTheRestrictionCanBeSwitchedOffFromWpConfig()
+    {
+        $admin = $this->restrictRoleToOfficeAddress();
+
+        $this->arriveFrom('45.148.10.72');
+
+        $this->assertTrue(\FluentAuth\App\Services\IpRules::deniesSignIn($admin));
+
+        define('FLUENT_AUTH_DISABLE_IP_RESTRICTION', true);
+
+        $this->assertFalse(\FluentAuth\App\Services\IpRules::deniesSignIn($admin));
+    }
 }

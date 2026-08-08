@@ -23,7 +23,7 @@ export default {
 
         <SettingRow :label="$t('Activity log')"
                     :description="$t('Login activity is always recorded. The attempt limit, the audit log and the login notifications all read from it, so it is not something that can be switched off.')">
-            <span class="fls_2fa_pill fls_2fa_pill_on">{{ $t('Always on') }}</span>
+            <span class="fls_tag is_success">{{ $t('Always on') }}</span>
         </SettingRow>
     </div>
 </template>

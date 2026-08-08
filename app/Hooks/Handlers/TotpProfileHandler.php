@@ -47,7 +47,7 @@ class TotpProfileHandler
 
         $isSelf = get_current_user_id() === (int)$user->ID;
         $isEnrolled = TotpTwoFaMethod::isEnrolled($user);
-        $notice = $this->pullNotice($user->ID);
+        $notice = self::pullNotice($user->ID);
 
         ?>
         <h2 id="fls-totp"><?php esc_html_e('Two-Factor Authentication', 'fluent-security'); ?></h2>
@@ -235,7 +235,7 @@ class TotpProfileHandler
 
         if (Arr::get($_POST, 'fls_totp_disable') === 'yes') {
             TotpTwoFaMethod::disable($userId);
-            $this->setNotice($userId, 'info', __('The authenticator app has been turned off.', 'fluent-security'));
+            self::setNotice($userId, 'info', __('The authenticator app has been turned off.', 'fluent-security'));
             return;
         }
 
@@ -246,7 +246,7 @@ class TotpProfileHandler
 
         if (Arr::get($_POST, 'fls_totp_regenerate_recovery') === 'yes' && TotpTwoFaMethod::isEnrolled($userId)) {
             $codes = TotpTwoFaMethod::generateRecoveryCodes($userId);
-            $this->setNotice($userId, 'codes', __('Your previous recovery codes no longer work. Here is the new set.', 'fluent-security'), $codes);
+            self::setNotice($userId, 'codes', __('Your previous recovery codes no longer work. Here is the new set.', 'fluent-security'), $codes);
             return;
         }
 
@@ -264,14 +264,14 @@ class TotpProfileHandler
         $pending = TotpTwoFaMethod::getPendingSecret($userId);
 
         if (!$pending) {
-            $this->setNotice($userId, 'error', __('That setup has expired. Reload this page to start again.', 'fluent-security'));
+            self::setNotice($userId, 'error', __('That setup has expired. Reload this page to start again.', 'fluent-security'));
             return;
         }
 
         $counter = TotpProvider::verify($pending, $submitted);
 
         if ($counter === false) {
-            $this->setNotice($userId, 'error', __('That code did not match. Check your phone clock is set automatically, then try the current code.', 'fluent-security'));
+            self::setNotice($userId, 'error', __('That code did not match. Check your phone clock is set automatically, then try the current code.', 'fluent-security'));
             return;
         }
 
@@ -283,17 +283,21 @@ class TotpProfileHandler
 
         $codes = TotpTwoFaMethod::generateRecoveryCodes($userId);
 
-        $this->setNotice($userId, 'codes', __('Your authenticator app is now set up. Save these recovery codes - they are the only way back in if you lose the device, and they are not shown again.', 'fluent-security'), $codes);
+        self::setNotice($userId, 'codes', __('Your authenticator app is now set up. Save these recovery codes - they are the only way back in if you lose the device, and they are not shown again.', 'fluent-security'), $codes);
     }
 
     /**
+     * Shared with the front-end setup screen (see TotpSetupPageHandler) rather than
+     * duplicated: it is one user being told one thing about their own enrollment, so
+     * whichever screen they land on first should be the one that shows it.
+     *
      * @param $userId int
      * @param $type string
      * @param $message string
      * @param $codes array
      * @return void
      */
-    private function setNotice($userId, $type, $message, $codes = [])
+    public static function setNotice($userId, $type, $message, $codes = [])
     {
         set_transient(self::NOTICE_TRANSIENT . $userId, [
             'type'    => $type,
@@ -306,7 +310,7 @@ class TotpProfileHandler
      * @param $userId int
      * @return array|false
      */
-    private function pullNotice($userId)
+    public static function pullNotice($userId)
     {
         $notice = get_transient(self::NOTICE_TRANSIENT . $userId);
 

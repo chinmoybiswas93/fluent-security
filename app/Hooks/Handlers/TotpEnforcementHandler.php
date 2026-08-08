@@ -40,7 +40,16 @@ class TotpEnforcementHandler
             return;
         }
 
-        wp_safe_redirect(add_query_arg('fls_totp_required', '1', admin_url('profile.php')) . '#fls-totp');
+        /*
+         * Sent to the standalone screen rather than to their profile. The profile screen
+         * is inside the admin area, which is exactly what this rule is holding shut - and
+         * on a site that keeps a role out of wp-admin altogether, being sent there means
+         * being bounced straight back out again with nothing set up.
+         *
+         * They came here trying to use the admin area, so that is where Continue returns
+         * them to once they are done.
+         */
+        wp_safe_redirect(TotpSetupPageHandler::getUrl(admin_url()));
         exit();
     }
 
@@ -105,8 +114,12 @@ class TotpEnforcementHandler
     }
 
     /**
-     * The user's own profile, which is where the setup form lives - and where the form
-     * posts back to, so the enrollment itself must not be redirected away.
+     * The profile screen still carries a setup form and still posts back to itself, so
+     * somebody who went there under their own steam is left to finish there rather than
+     * being pulled off the page mid-enrollment.
+     *
+     * The standalone screen needs no exemption: it lives on wp-login.php, where
+     * admin_init never runs.
      *
      * @return bool
      */

@@ -89,11 +89,50 @@ class ProxyDetection
              * proxy, nothing has been declared, so every visitor is arriving as the
              * same address and the attempt limit is counting them as one person.
              */
-            'needs_attention'   => $status === self::STATUS_DETECTED && !$configured,
+            'needs_attention'   => self::isAmbiguous(),
             // Offered for the administrator to accept, never applied on their behalf.
             'suggested_proxy'   => ($isPrivate && $remoteAddr) ? $remoteAddr : '',
             'suggested_header'  => self::suggestHeader($headers)
         ];
+    }
+
+    /**
+     * Whether this site's visitor addresses cannot currently be told apart.
+     *
+     * True when the request reached PHP from inside the network - so something in front
+     * relayed it - and no proxy has been declared for the resolver to trust. In that state
+     * every visitor resolves to the same address, which makes the attempt limit count them
+     * as one person, and makes an IP allow list catastrophic: exempting that one shared
+     * address exempts everyone who can reach the site. The allow list checks this before it
+     * will apply, which is why the condition lives here as its own answer rather than being
+     * buried in the array detect() returns.
+     *
+     * @return bool
+     */
+    public static function isAmbiguous()
+    {
+        // Declared, so the resolver already knows which hop to believe.
+        if (Helper::getTrustedProxies()) {
+            return false;
+        }
+
+        $remoteAddr = '';
+
+        if (!empty($_SERVER['REMOTE_ADDR'])) {
+            $remoteAddr = sanitize_text_field(wp_unslash($_SERVER['REMOTE_ADDR']));
+        }
+
+        if (!$remoteAddr) {
+            // No connection behind this request at all - WP-CLI or cron, nothing to exempt.
+            return false;
+        }
+
+        // Cloudflare proves itself against their published ranges, so it is not ambiguous.
+        if (!empty($_SERVER['HTTP_CF_CONNECTING_IP']) && Helper::isCfIp($remoteAddr)) {
+            return false;
+        }
+
+        return self::isPrivateOrLocal($remoteAddr);
     }
 
     /**

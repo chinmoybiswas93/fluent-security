@@ -22,7 +22,7 @@ class TotpProfileHandlerTest extends BaseTestCase
 
         $settings = \FluentAuth\App\Helpers\Helper::getAuthSettings();
         $settings['totp_2fa'] = 'yes';
-        $settings['totp_2fa_roles'] = [];
+        $settings['totp_2fa_roles'] = ['administrator'];
         $settings['totp_required_roles'] = [];
         update_option('__fls_auth_settings', $settings);
         \FluentAuth\App\Helpers\Helper::resetStatics();

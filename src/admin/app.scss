@@ -1,26 +1,13 @@
 $slug: 'fframe_';
 $primary-color: rgb(47, 41, 37);
 
-@use "styles/layout";
+/* Every colour the app paints with, light and dark, comes from here - so it goes first. */
+@use "styles/theme";
 
-/*
- * FluentCart's primary, so a button here and a button there are the same button.
- *
- * This has to be a CSS variable rather than a Sass configuration of Element Plus's
- * var.scss: the components are auto-imported by ElementPlusResolver, which pulls in the
- * pre-built CSS and injects it into <head> at runtime - after this stylesheet. A `:root`
- * rule would lose on order no matter what it contained, which is why the earlier Sass
- * override silently did nothing. Beating it needs a more specific selector, and the body
- * class WordPress puts on this plugin's screen supplies one without leaking the colour
- * into any other plugin's pages. Element Plus's teleported popups - notifications,
- * message boxes, select dropdowns - attach to <body>, so they inherit it too.
- *
- * Only the base is set, matching FluentCart exactly; it leaves the derived
- * --el-color-primary-light-* ramp at Element Plus's defaults.
- */
-body.toplevel_page_fluent-auth {
-  --el-color-primary: #253241;
-}
+@use "styles/layout";
+@use "styles/dashboard";
+@use "styles/list";
+@use "styles/scan";
 
 @tailwind components;
 @tailwind utilities;
@@ -46,7 +33,7 @@ body.toplevel_page_fluent-auth {
 
 .log_filters {
   padding: 15px;
-  background: white;
+  background: var(--fls-surface);
   margin-bottom: 15px;
 
   .log_filter {
@@ -70,7 +57,7 @@ body.toplevel_page_fluent-auth {
 }
 
 .el-table .row_expensive {
-  background: #ffeff0;
+  background: var(--fls-danger-wash);
 }
 
 .text {
@@ -91,11 +78,11 @@ body.toplevel_page_fluent-auth {
   }
 
   &-bg-warning {
-    background-color: #fff6a6;
+    background-color: var(--fls-warning-bg);
   }
 
   &-bg-highlight {
-    background: #EEEEEE;
+    background: var(--fls-surface-raised);
   }
 
   &-danger {
@@ -137,14 +124,14 @@ body.toplevel_page_fluent-auth {
   }
 
   .box_header_empty {
-    border-bottom: 1px solid #e3e8ee;
+    border-bottom: 1px solid var(--fls-border);
     display: block;
     width: auto;
     clear: both;
     overflow: hidden;
     margin: 0;
     padding: 10px 0;
-    color: #697386;
+    color: var(--fls-text-mid);
 
     h3 {
       display: inline-block;
@@ -161,14 +148,14 @@ body.toplevel_page_fluent-auth {
   .box_header {
     display: block;
     width: auto;
-    border-bottom: 1px solid #e3e8ee;
+    border-bottom: 1px solid var(--fls-border);
     clear: both;
     overflow: hidden;
     margin: 0;
     padding: 10px 15px;
-    background-color: #f7fafc;
+    background-color: var(--fls-surface-sunk);
     font-weight: 700;
-    color: #697386;
+    color: var(--fls-text-mid);
 
     .box_head {
       float: left;
@@ -187,7 +174,7 @@ body.toplevel_page_fluent-auth {
   }
 
   .box_body {
-    background: #fff;
+    background: var(--fls-surface);
     display: block;
     overflow: hidden;
   }
@@ -246,7 +233,7 @@ body.toplevel_page_fluent-auth {
 
 .fls_login_settings {
   padding: 20px 20px 5px;
-  background: #f5f7fa;
+  background: var(--fls-surface-sunk);
   margin-bottom: 30px;
   border-radius: 5px;
   transition: background .3s, border .3s, border-radius .3s, box-shadow .3s;
@@ -299,7 +286,8 @@ body.toplevel_page_fluent-auth {
 }
 
 .fls_errors {
-  background: #fff06f;
+  background: var(--fls-warning-bg);
+  color: var(--fls-warning-fg);
   padding: 10px;
 
   ul {
@@ -309,7 +297,14 @@ body.toplevel_page_fluent-auth {
 }
 
 
-.ff_app_body {
+/*
+ * The 20px right gutter used to sit on the body wrapper, which meant every screen got it
+ * whether it wanted one or not. The dashboard centres a fixed-width column in the page the
+ * way FluentCart does, and an odd margin on one side puts that column off centre - so the
+ * gutter now belongs to the screens that are still laid out the old way, which is exactly
+ * the set that uses .box_wrapper.
+ */
+.box_wrapper {
   margin-right: 20px;
 }
 
@@ -317,121 +312,12 @@ body.toplevel_page_fluent-auth {
   margin-bottom: 30px;
 }
 
-ul.fls_listed_data {
-  margin: 0;
-  list-style: none;
-  padding: 0;
-
-  li {
-    padding: 10px 15px;
-    margin: 0;
-    line-height: 150%;
-    display: block;
-    width: 100%;
-    border-bottom: 1px solid #ebeef5;
-
-    &:hover {
-      background-color: #f7fafc;
-    }
-
-    span.fls_value {
-      text-align: right;
-      float: right;
-      text-transform: capitalize;
-    }
-  }
-}
 
 .el-form-item label.el-form-item__label, .el-form-item--label-top .el-form-item__label {
   font-weight: 500;
-  color: black;
+  color: var(--fls-text);
 }
 
-.fct_widget_bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  flex-wrap: wrap;
-  align-content: center;
-
-  .fct_stat_item {
-    min-height: 5rem;
-    padding: 0 1rem;
-    flex: 1;
-    align-items: center;
-    display: flex;
-    height: 100%;
-    justify-content: center;
-    text-align: center;
-
-    h3 {
-      margin: 0;
-    }
-
-    &.fct_stat_filter {
-      justify-content: center;
-    }
-
-    .fct_w_vals {
-      display: flex;
-      flex-direction: column;
-    }
-  }
-}
-
-.fct_widget_dark.fct_widget_bar {
-  margin-bottom: 1rem;
-
-  * {
-    color: #dcdcdc;
-  }
-
-  .fct_stat_item {
-    background: #1f1f25;
-    border: none;
-    border-right: 1px solid #000;
-    box-sizing: border-box;
-    color: #f1f2f3;
-    cursor: pointer;
-
-    &:hover {
-      background: #34343b;
-    }
-
-    &:first-child {
-      border-bottom-left-radius: 0.5rem;
-      border-top-left-radius: 0.5rem;
-    }
-
-    &:last-child {
-      border-bottom-right-radius: 0.5rem;
-      border-top-right-radius: 0.5rem;
-    }
-
-    .fct_w_num {
-      color: white;
-      margin-top: 5px;
-      font-size: 130%;
-    }
-  }
-}
-
-.fct_quick_statbar_popup {
-  > .el-radio {
-    margin-bottom: 5px;
-    width: 100%;
-  }
-
-  h1 {
-    margin: 0;
-    padding: 0;
-    font-size: 16px;
-  }
-
-  p {
-    margin: 0;
-  }
-}
 
 .el-input__inner {
   border: 0 !important;
@@ -444,13 +330,7 @@ ul.fls_listed_data {
   }
 }
 
-.fls_status_blocked td {
-  background-color: #ffdfdc !important;
-}
-
-.fls_status_failed td {
-  background-color: #ffffea;
-}
+// The logs table said the status by tinting the whole row; it wears a .fls_tag now.
 
 
 .fls_code_instruction {
@@ -475,8 +355,8 @@ ul.fls_listed_data {
     width: 100%;
     height: 40px;
     padding: 9px 15px;
-    border-color: #e3e8ee;
-    background-color: #f3f3f3;
+    border-color: var(--fls-border);
+    background-color: var(--fls-surface-sunk);
   }
 
   p {
@@ -529,7 +409,7 @@ ul.fls_listed_data {
       right: 0;
       top: 2px;
       transform: rotate(180deg);
-      color: #f7f7fc;
+      color: var(--fls-surface-sunk);
       font-weight: bold;
       font-size: 15px;
     }
@@ -544,7 +424,7 @@ ul.fls_listed_data {
   .fls_rule_group {
     position: relative;
     padding: 25px 20px 0px 40px;
-    background: #f7f7fc;
+    background: var(--fls-surface-sunk);
     margin: 0 0 30px;
   }
 
@@ -602,89 +482,8 @@ ul.fls_listed_data {
   }
 }
 
-.fls_register_box {
-  padding: 20px 30px 30px;
-  max-width: 800px;
-  margin: 50px auto;
-  background: white;
-  text-align: center;
-  box-shadow: 0 0 #0000, 0 0 #0000, 0 1px 2px 0 rgb(0, 0, 0, 0.05);
-  border-radius: 8px;
-
-  h2 {
-    font-size: 20px;
-    font-weight: bold;
-    margin: 10px 0;
-  }
-
-  form {
-    text-align: left;
-    margin-top: 35px;
-  }
-}
-
-.fls_file_lists {
-  margin: -15px;
-
-  .fls_file_item {
-    padding: 12px 20px;
-    border-bottom: 1px solid #e3e8ee;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 15px;
-
-    .fls_file_title {
-      display: flex;
-      align-items: center;
-      column-gap: 5px;
-    }
-
-    &.fls_file_ignored {
-      opacity: 0.4;
-    }
-
-    .fls_file_icon {
-      .el-tag__content {
-        display: flex;
-        align-items: center;
-        column-gap: 5px;
-        .el-icon {
-          font-size: 150%;
-        }
-      }
-      &.fls_file_icon_type_new {
-        // it's a danger
-        background: #ffdfdc;
-        color: #ff4949;
-        border-color: #ff4949;
-      }
-
-      &.fls_file_icon_type_modified {
-        // it's a warning but make it bit contrast
-        background: #ffffea;
-        color: #f7ba2a;
-        border-color: #f7ba2a;
-      }
-    }
-
-    .fls_file_status {
-      display: flex;
-      align-items: center;
-    }
-  }
-}
-
-.fls_diff_view { word-wrap: break-word; }
-
-.fls_diff_view {
-    background: #f7f7fc;
-    padding: 10px 20px;
-    margin: 0;
-    overflow: auto;
-}
-
-
+/* The scans screen was built from .fls_register_box, .fls_file_lists and .fls_diff_view;
+   it is laid out like the rest of the app now - see styles/_scan.scss. */
 
 .object_menu {
   padding: 0;
@@ -717,19 +516,19 @@ ul.fls_listed_data {
       a {
         display: flex;
         text-decoration: none;
-        color: var(--fcom-menu-text, #545861);
+        color: var(--fcom-menu-text, var(--fls-text-mid));
         padding: 6px 12px;
         border-radius: 8px;
         cursor: pointer;
 
         &:hover {
-          background: var(--fcom-active-bg, #f0f3f5);
-          color: var(--fcom-menu-text-active, var(--fcom-menu-text, #545861));
+          background: var(--fcom-active-bg, var(--fls-surface-sunk));
+          color: var(--fcom-menu-text-active, var(--fcom-menu-text, var(--fls-text-mid)));
         }
 
         &.router-link-exact-active {
-          color: var(--fcom-menu-text-active, var(--fcom-menu-text, #545861));
-          background: var(--fcom-active-bg, #f0f3f5);
+          color: var(--fcom-menu-text-active, var(--fcom-menu-text, var(--fls-text-mid)));
+          background: var(--fcom-active-bg, var(--fls-surface-sunk));
         }
       }
     }
@@ -748,11 +547,11 @@ ul.fls_listed_data {
 .fcom_full_editor_side.lockscreen_editor {
   width: 350px;
   max-height: calc(100vh - 60px);
-  background: #F0F2F5;
+  background: var(--fls-body-bg);
 }
 .fcom_full_editor_main.lockscreen_editor {
   padding: 2rem;
-  background:  #F0F2F5;
+  background:  var(--fls-body-bg);
 }
 
 
@@ -769,7 +568,7 @@ ul.fls_listed_data {
   left: 0;
   right: 0;
   bottom: 0;
-  background: white;
+  background: var(--fls-surface);
 
   .full_editor_actions {
     display: flex;
@@ -796,7 +595,7 @@ ul.fls_listed_data {
 
   .fcom_editor_content {
     display: flex;
-    background: var(--fcom-primary-bg, #f8f8f8);
+    background: var(--fcom-primary-bg, var(--fls-body-bg));
     min-height: calc(100vh - 125px);
     border-radius: 8px;
   }
@@ -804,7 +603,7 @@ ul.fls_listed_data {
 
   .fcom_meta_section {
     margin-bottom: 20px;
-    border-bottom: 1px solid var(--fcom-secondary-border, #e5e7eb);
+    border-bottom: 1px solid var(--fcom-secondary-border, var(--fls-border));
     padding-bottom: 10px;
 
     &:last-child {
@@ -817,7 +616,7 @@ ul.fls_listed_data {
       padding-bottom: .25rem;
 
       .fcom_meta_label {
-        color: var(--fcom-menu-text, #545861);
+        color: var(--fcom-menu-text, var(--fls-text-mid));
         line-height: 1.5;
         font-weight: 600;
         font-size: 1.125rem;
@@ -837,7 +636,7 @@ ul.fls_listed_data {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            border: 1px solid #e3e8ee;
+            border: 1px solid var(--fls-border);
             border-radius: 6px;
             padding: 6px 12px;
             position: relative;
@@ -860,7 +659,7 @@ ul.fls_listed_data {
 
               i {
                 background: #f0f2f5;
-                border: 1px solid #e3e8ee;
+                border: 1px solid var(--fls-border);
                 border-radius: 4px;
                 cursor: pointer;
                 height: 18px;
@@ -873,7 +672,7 @@ ul.fls_listed_data {
                 justify-content: center;
 
                 &:hover {
-                  border-color: #19283a;
+                  border-color: var(--fls-text);
                 }
               }
             }
@@ -911,7 +710,7 @@ ul.fls_listed_data {
 
     .fcom_meta_label {
       font-weight: 500;
-      color: #545861;
+      color: var(--fls-text-mid);
       margin-bottom: 5px;
     }
   }
@@ -919,8 +718,8 @@ ul.fls_listed_data {
     .fcom_description {
       padding: 1rem;
       font-size: 16px;
-      color: #19283a;
-      background-color: #f0f3f5;
+      color: var(--fls-text);
+      background-color: var(--fls-surface-sunk);
       border-radius: 8px;
       margin-top: 14px;
       margin-bottom: 1.5rem;
@@ -945,7 +744,7 @@ ul.fls_listed_data {
       }
 
       .fcom_color_label {
-        color: #19283a;
+        color: var(--fls-text);
         font-size: 14px;
         font-weight: bold;
         height: auto;
@@ -961,7 +760,7 @@ ul.fls_listed_data {
           border: none;
 
           .el-color-picker__color-inner {
-            border: 1px solid #e3e8ee;
+            border: 1px solid var(--fls-border);
             border-radius: 0;
           }
         }
@@ -984,13 +783,13 @@ ul.fls_listed_data {
 
   .fcom_full_editor_header_wrap {
     ackground-color: white;
-    border-bottom: 1px solid #DADDE1;
+    border-bottom: 1px solid var(--fls-border);
   }
 
   .fcom_full_editor_side {
-    background: #f8f8f8;
+    background: var(--fls-surface-sunk);
     padding: 20px;
-    border-right: 1px solid #DADDE1;
+    border-right: 1px solid var(--fls-border);
 
     &.lockscreen_editor {
       width: 350px;
@@ -1014,15 +813,15 @@ ul.fls_listed_data {
         .el-tabs {
           .el-tabs__header {
             .el-tabs__item.is-active {
-              color: #19283a;
+              color: var(--fls-text);
             }
 
             .el-tabs__item:hover {
-              color: #19283a;
+              color: var(--fls-text);
             }
 
             .el-tabs__active-bar {
-              background-color: #19283a;
+              background-color: var(--fls-text);
             }
           }
 
@@ -1059,7 +858,7 @@ ul.fls_listed_data {
                     .fcom_btn_upload {
                       width: 100%;
                       padding: 1.5rem;
-                      border: 1px solid #dcdfe6;
+                      border: 1px solid var(--fls-border);
                     }
                   }
                 }
@@ -1069,7 +868,7 @@ ul.fls_listed_data {
                   position: absolute;
                   display: flex;
                   color: white;
-                  background-color: rgb(66 69 77);
+                  background-color: var(--fls-accent);
                   top: -8px;
                   right: 8px;
                   border-radius: 50%;
@@ -1087,12 +886,12 @@ ul.fls_listed_data {
             .fcom_help_text {
               font-size: 12px;
               font-style: italic;
-              color: var(--fcom-primary-text, #19283a);
+              color: var(--fcom-primary-text, var(--fls-text));
             }
           }
 
           .el-form-item__label {
-            color: var(--fcom-primary-text, #19283a);
+            color: var(--fcom-primary-text, var(--fls-text));
           }
 
           .el-form-item__content {
@@ -1108,7 +907,7 @@ ul.fls_listed_data {
 
               .el-input__wrapper {
                 box-shadow: none;
-                border: 1px solid #dcdfe6;
+                border: 1px solid var(--fls-border);
                 border-left: none;
                 padding-left: 0;
                 border-top-left-radius: 0;
@@ -1118,13 +917,13 @@ ul.fls_listed_data {
               .el-color-picker {
                 &.is-focused {
                   .el-color-picker__trigger {
-                    border-color: #dcdfe6;
+                    border-color: var(--fls-border);
                   }
                 }
 
                 &:hover {
                   .el-color-picker__trigger {
-                    border-color: #dcdfe6;
+                    border-color: var(--fls-border);
                   }
                 }
 
@@ -1132,7 +931,7 @@ ul.fls_listed_data {
                   height: 100%;
                   width: 48px;
                   padding: 12px 12px;
-                  border: 1px solid #dcdfe6;
+                  border: 1px solid var(--fls-border);
                   border-radius: 8px;
                   border-right: none;
                   border-top-right-radius: 0;
@@ -1187,15 +986,15 @@ ul.fls_listed_data {
   .fcom_full_editor_main {
     padding-top: 0;
     height: calc(100vh - 60px);
-    background: var(--fcom-primary-bg, #f8f8f8);
+    background: var(--fcom-primary-bg, var(--fls-body-bg));
 
     &.lockscreen_editor {
       padding: 2rem;
-      background:  #F0F2F5;
+      background:  var(--fls-body-bg);
 
       .el-scrollbar {
         border-radius: 8px;
-        background: var(--fcom-primary-bg, #FFFFFF);
+        background: var(--fcom-primary-bg, var(--fls-surface));
 
         .fcom_editor_topbar {
           display: flex;

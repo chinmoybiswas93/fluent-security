@@ -121,15 +121,15 @@ export default {
             width: 100%;
             padding: 0;
             a {
-                background: #e6e6e6;
-                color: #1e1f21;
+                background: var(--fls-surface-raised);
+                color: var(--fls-text);
                 text-align: center;
                 display: block;
                 padding: 4px 5px;
                 border-radius: 4px;
                 transition: .2s;
                 &:hover {
-                    background: #1e1f21;
+                    background: var(--fls-text);
                     color: #ffffff;
                 }
             }
@@ -137,7 +137,7 @@ export default {
 
         .el_pop_data_headings {
             width: 190px;
-            background: #f2f2f2;
+            background: var(--fls-surface-sunk);
             border-radius: 8px;
             padding: 10px;
             position: relative;
@@ -148,7 +148,7 @@ export default {
 
                 li {
                     cursor: pointer;
-                    color: #1e1f21;
+                    color: var(--fls-text);
                     font-size: 13px;
                     padding: 6px 8px;
                     border-radius: 4px;
@@ -157,7 +157,7 @@ export default {
                     transition: .2s;
 
                     &.active_item_selected {
-                        background: #1e1f21;
+                        background: var(--fls-text);
                         color: #ffffff;
                     }
                 }
@@ -165,7 +165,7 @@ export default {
         }
 
         .el_pop_data_body {
-            background: #ffffff;
+            background: var(--fls-surface);
             padding: 14px 20px 0 20px;
             width: 370px;
             height: 400px;
@@ -183,7 +183,7 @@ export default {
                     margin-bottom: 0;
                     cursor: pointer;
                     text-align: left;
-                    border-bottom: 1px solid #ececec;
+                    border-bottom: 1px solid var(--fls-border);
                     &:first-child {
                         padding-top: 0;
                     }
@@ -192,7 +192,7 @@ export default {
                     }
 
                     &:hover {
-                        background: white;
+                        background: var(--fls-surface);
                     }
 
                     span {

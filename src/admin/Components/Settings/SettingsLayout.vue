@@ -52,6 +52,32 @@ export default {
             this.activeSection = id;
         },
         /**
+         * Honours ?section=... on arrival, for links that point at one block of settings.
+         *
+         * The dashboard's checklist links straight at the setting that would tick it. That
+         * cannot be a URL fragment: the router owns the hash, and the element to scroll to
+         * lives inside a pane that scrolls rather than the document, which is not
+         * somewhere the browser's own fragment handling can reach. The section only exists
+         * once the page has loaded its settings, so this waits for it rather than firing
+         * once into an empty pane and giving up.
+         */
+        openRequestedSection(attempt = 0) {
+            const id = this.$route.query.section;
+
+            if (!id || !this.$refs.pane) {
+                return;
+            }
+
+            if (document.getElementById('fls_section_' + id)) {
+                this.scrollToSection(id);
+                return;
+            }
+
+            if (attempt < 20) {
+                this.sectionTimer = setTimeout(() => this.openRequestedSection(attempt + 1), 100);
+            }
+        },
+        /**
          * The viewport line a section has to cross to count as the current one. Measured
          * from the header rather than hard-coded, so it stays right if the header grows.
          */
@@ -116,6 +142,7 @@ export default {
         this.$refs.pane.addEventListener('scroll', this.spy, {passive: true});
         window.addEventListener('scroll', this.spy, {passive: true});
         this.$nextTick(this.spy);
+        this.$nextTick(() => this.openRequestedSection());
     },
     beforeUnmount() {
         if (this.$refs.pane) {
@@ -123,6 +150,7 @@ export default {
         }
 
         window.removeEventListener('scroll', this.spy);
+        clearTimeout(this.sectionTimer);
     },
     watch: {
         /*
@@ -138,6 +166,7 @@ export default {
             }
 
             this.$nextTick(() => setTimeout(this.spy, 50));
+            this.$nextTick(() => this.openRequestedSection());
         }
     }
 };

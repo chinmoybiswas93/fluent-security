@@ -92,6 +92,26 @@ class TotpTwoFaMethod extends BaseTwoFaMethod
      * @param $user \WP_User|int
      * @return bool
      */
+    /**
+     * Whether this method is in force for anybody at all.
+     *
+     * The site-wide half of isAllowedForUser, without a user to measure against. Asked
+     * by screens that report on second factors rather than apply them - the enrollment
+     * list has nothing to list if no method is live.
+     *
+     * @return bool
+     */
+    public static function isEnabledForAnyRole()
+    {
+        if (Helper::getSetting('totp_2fa') !== 'yes') {
+            return false;
+        }
+
+        $roles = Helper::getSetting('totp_2fa_roles');
+
+        return is_array($roles) && (bool)$roles;
+    }
+
     public static function isAllowedForUser($user)
     {
         $user = self::resolveUser($user);
@@ -110,9 +130,17 @@ class TotpTwoFaMethod extends BaseTwoFaMethod
 
         $roles = Helper::getSetting('totp_2fa_roles');
 
-        // No roles named means no restriction, rather than nobody.
+        /*
+         * Naming the roles is how the method is turned on, so naming none turns it off.
+         *
+         * The other reading - that an empty list means every role - makes the switch
+         * above enough to hand an authenticator app to every subscriber on the site the
+         * moment it is flipped, which is not something to arrive at by leaving a field
+         * alone. It is also the same shape as the required list underneath it, which has
+         * always meant nobody when empty.
+         */
         if (!$roles || !is_array($roles)) {
-            return true;
+            return false;
         }
 
         return (bool)array_intersect($roles, array_values($user->roles));

@@ -3,6 +3,7 @@
 namespace FluentAuth\App\Http\Controllers;
 
 use FluentAuth\App\Helpers\Helper;
+use FluentAuth\App\Services\TwoFa\EmailTwoFaMethod;
 use FluentAuth\App\Services\TwoFa\TotpTwoFaMethod;
 
 /**
@@ -35,26 +36,26 @@ class TwoFaController
             $args['search_columns'] = ['user_login', 'user_email', 'display_name'];
         }
 
+        $clauses = [self::getScopeClause()];
+
         /*
          * Enrollment is a meta key, so filtering on it belongs in the query rather than
          * in a loop over the page - otherwise "show me who is enrolled" returns however
          * many of the first twenty users happen to be.
          */
         if ($filter === 'enrolled') {
-            $args['meta_query'] = [
-                [
-                    'key'     => TotpTwoFaMethod::META_SECRET,
-                    'compare' => 'EXISTS'
-                ]
+            $clauses[] = [
+                'key'     => TotpTwoFaMethod::META_SECRET,
+                'compare' => 'EXISTS'
             ];
         } elseif ($filter === 'not_enrolled') {
-            $args['meta_query'] = [
-                [
-                    'key'     => TotpTwoFaMethod::META_SECRET,
-                    'compare' => 'NOT EXISTS'
-                ]
+            $clauses[] = [
+                'key'     => TotpTwoFaMethod::META_SECRET,
+                'compare' => 'NOT EXISTS'
             ];
         }
+
+        $args['meta_query'] = array_merge(['relation' => 'AND'], $clauses);
 
         $query = new \WP_User_Query($args);
 
@@ -72,7 +73,14 @@ class TwoFaController
                 'current_page' => $page,
                 'last_page'    => (int)ceil($query->get_total() / self::PER_PAGE)
             ],
-            'summary' => self::getSummary()
+            'summary' => self::getSummary(),
+            /*
+             * Reported with the rows rather than read from the settings the admin screen
+             * was booted with: this list is where somebody lands after changing a policy,
+             * and a stale answer here would have the screen describing the site as it was
+             * when the tab was opened.
+             */
+            'methods' => self::getMethodStates()
         ];
     }
 
@@ -116,6 +124,81 @@ class TwoFaController
             'summary' => self::getSummary(),
             /* translators: %s: the user's login name */
             'message' => sprintf(__('The authenticator app for %s has been turned off. They can set up a new one from their profile.', 'fluent-security'), $user->user_login)
+        ];
+    }
+
+    /**
+     * Who belongs on this list at all.
+     *
+     * Not every user on the site. A membership site has thousands of subscribers who are
+     * offered nothing, and a page of "Not available" repeated down every column buries
+     * the handful of rows worth reading.
+     *
+     * So: anybody whose role is offered a second factor, or - however the policy has
+     * changed since - anybody who actually has one. That second half is not tidiness. A
+     * user who enrolled while their role was allowed keeps a working secret when the
+     * role is taken off the list, and this screen is the only place to turn it off; drop
+     * them and the count above the table reports somebody the table cannot show.
+     *
+     * Built as meta clauses rather than `role__in` because that argument cannot be ORed
+     * with the enrollment test. This is the comparison it compiles to anyway - roles
+     * live serialised inside one capabilities key.
+     *
+     * @return array
+     */
+    private static function getScopeClause()
+    {
+        global $wpdb;
+
+        $clause = [
+            'relation' => 'OR',
+            [
+                'key'     => TotpTwoFaMethod::META_SECRET,
+                'compare' => 'EXISTS'
+            ]
+        ];
+
+        foreach (self::getCoveredRoles() as $role) {
+            $clause[] = [
+                'key'     => $wpdb->get_blog_prefix() . 'capabilities',
+                'value'   => '"' . $role . '"',
+                'compare' => 'LIKE'
+            ];
+        }
+
+        return $clause;
+    }
+
+    /**
+     * The roles offered a second factor by one method or the other.
+     *
+     * @return array
+     */
+    private static function getCoveredRoles()
+    {
+        $roles = [];
+
+        if (TotpTwoFaMethod::isEnabledForAnyRole()) {
+            $roles = (array)Helper::getSetting('totp_2fa_roles');
+        }
+
+        if (EmailTwoFaMethod::isEnabledForAnyRole()) {
+            $roles = array_merge($roles, (array)Helper::getSetting('email2fa_roles'));
+        }
+
+        return array_values(array_unique(array_filter($roles)));
+    }
+
+    /**
+     * Which second factors this site actually has in force.
+     *
+     * @return array
+     */
+    private static function getMethodStates()
+    {
+        return [
+            'totp'  => TotpTwoFaMethod::isEnabledForAnyRole(),
+            'email' => EmailTwoFaMethod::isEnabledForAnyRole()
         ];
     }
 
@@ -169,14 +252,30 @@ class TwoFaController
             ]
         ]);
 
-        $all = new \WP_User_Query([
-            'number' => 1,
-            'fields' => 'ID'
-        ]);
+        /*
+         * Measured against the people who could have one, not against everybody with an
+         * account. "3 of 4000" describes a membership list; "3 of 5" describes whether
+         * the policy has landed, which is the only reason to put a number here.
+         */
+        $allowedRoles = TotpTwoFaMethod::isEnabledForAnyRole()
+            ? (array)Helper::getSetting('totp_2fa_roles')
+            : [];
+
+        $eligible = 0;
+
+        if ($allowedRoles) {
+            $query = new \WP_User_Query([
+                'number'    => 1,
+                'fields'    => 'ID',
+                'role__in'  => $allowedRoles
+            ]);
+
+            $eligible = (int)$query->get_total();
+        }
 
         return [
-            'enrolled'    => (int)$enrolled->get_total(),
-            'total_users' => (int)$all->get_total()
+            'enrolled' => (int)$enrolled->get_total(),
+            'eligible' => $eligible
         ];
     }
 }

@@ -1,9 +1,10 @@
-import Dashboard from './Components/Dashboard.vue';
+import Dashboard from './Components/Dashboard/index.vue';
 import Logs from './Components/Logs.vue';
 
 import SettingsLayout from './Components/Settings/SettingsLayout.vue';
 import GeneralSettings from './Components/Settings/Pages/General.vue';
 import EnrolledUsers from './Components/TwoFa/EnrolledUsers.vue';
+import IpRulesSettings from './Components/Settings/Pages/IpRules.vue';
 
 import AuthShortcodes from './Components/AuthShortcodes.vue';
 import LoginRedirects from './Components/LoginRedirects.vue';
@@ -32,6 +33,12 @@ const settingsChildren = [
         name: 'settings_two_fa_enrollment',
         component: EnrolledUsers,
         meta: {title: 'Two-Factor Enrollment'}
+    },
+    {
+        path: 'ip-rules',
+        name: 'settings_ip_rules',
+        component: IpRulesSettings,
+        meta: {title: 'IP Access Rules'}
     },
     {
         path: 'social-login',

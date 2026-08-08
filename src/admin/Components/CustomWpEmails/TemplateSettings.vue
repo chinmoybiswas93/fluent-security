@@ -277,7 +277,7 @@ export default {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: .04em;
-        color: #909399;
+        color: var(--fls-text-light);
         margin-bottom: 8px;
     }
 }
@@ -293,14 +293,14 @@ export default {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: .04em;
-        color: #909399;
+        color: var(--fls-text-light);
         font-weight: 600;
         margin: 0 0 6px;
     }
 
     .fls_swatch_group_note {
         font-size: 11px;
-        color: #909399;
+        color: var(--fls-text-light);
         line-height: 1.4;
         margin: -2px 0 6px;
     }
@@ -327,14 +327,14 @@ export default {
     .fls_swatch_hint {
         display: block;
         font-size: 11px;
-        color: #909399;
+        color: var(--fls-text-light);
         line-height: 1.3;
     }
 
     .fls_swatch_value {
         flex: 0 0 auto;
         font-size: 11px;
-        color: #909399;
+        color: var(--fls-text-light);
         text-transform: uppercase;
         background: none;
         padding: 0;
@@ -355,7 +355,11 @@ export default {
      */
     height: clamp(380px, calc(100vh - 330px), 620px);
     border-radius: 4px;
-    border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+    border: 1px solid var(--el-border-color-lighter, var(--fls-border));
+    /*
+     * White in both themes, deliberately. This is a preview of an email as its recipient
+     * will see it, and their inbox is not running this plugin's dark theme.
+     */
     background: #fff;
     display: block;
 }

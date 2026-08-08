@@ -1,0 +1,736 @@
+/*
+ * The dashboard.
+ *
+ * The measurements are FluentCart's own, read off its rendered dashboard rather than
+ * eyeballed from a screenshot: a 1350px content column centred in the page, split into a
+ * fluid main column and a 380px aside with a 24px gutter; 20px card padding; 8px card
+ * radius; 12px on the stat tiles. If FluentCart's dashboard changes, measure it again
+ * rather than drift towards it.
+ */
+
+/* The page shell these sit in - .fls_page and its aside - lives in _layout.scss now,
+   because the security scans screen is laid out the same way. */
+
+/* ---------------------------------------------------------------- greeting */
+
+.fls_dash_greeting {
+    @apply flex items-center justify-between gap-4;
+
+    margin-bottom: 24px;
+
+    .fls_dash_greeting_who {
+        @apply flex items-center;
+
+        gap: 12px;
+        min-width: 0;
+    }
+
+    .fls_dash_avatar {
+        @apply flex-none overflow-hidden rounded-full bg-surface-raised;
+
+        width: 48px;
+        height: 48px;
+
+        img {
+            @apply block w-full h-full;
+
+            object-fit: cover;
+        }
+    }
+
+    h1 {
+        @apply text-lg font-medium m-0;
+
+        color: var(--fls-heading);
+        line-height: 24px;
+        margin-bottom: 4px;
+    }
+
+    p {
+        @apply text-sm text-ink-mid m-0;
+    }
+
+    .fls_dash_greeting_actions {
+        @apply flex items-center gap-3 flex-none;
+    }
+}
+
+/* -------------------------------------------------------------- range pill */
+
+/*
+ * The range applies to the tiles and the chart, so it sits above both rather than inside
+ * one of them - a filter parked in a card header reads as belonging to that card.
+ */
+.fls_dash_range {
+    @apply flex items-center;
+
+    gap: 8px;
+    margin-bottom: 12px;
+
+    .fls_dash_range_label {
+        @apply text-xs text-ink-light;
+    }
+}
+
+/* ------------------------------------------------------------- stat tiles */
+
+/*
+ * Four across when there is room, fewer when there is not - decided by how wide this grid
+ * actually is rather than by how wide the window is. A media query cannot tell the
+ * difference: the main column here is the window minus wp-admin's menu, minus the page
+ * gutters, minus a 380px aside, so the same viewport width leaves very different room
+ * depending on whether the aside is beside it or under it. Keyed to the viewport, the
+ * fourth tile went down to 124px in between.
+ */
+.fls_stat_tiles {
+    @apply grid;
+
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 20px;
+    margin-bottom: 24px;
+}
+
+.fls_stat_tile {
+    @apply flex flex-col items-start bg-surface no-underline;
+
+    gap: 12px;
+    border-radius: 12px;
+    padding: 16px;
+    height: 100%;
+    transition: box-shadow .15s ease;
+
+    &:hover {
+        box-shadow: var(--fls-shadow-lift);
+    }
+
+    &:focus,
+    &:active {
+        box-shadow: none;
+        outline: none;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--fls-accent);
+        outline-offset: 1px;
+    }
+
+    .fls_stat_icon {
+        @apply flex flex-none items-center justify-center;
+
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+
+        svg {
+            width: 20px;
+            height: 20px;
+        }
+    }
+
+    /*
+     * One hue per status, taken from FluentCart's own tile ramp: it colours tiles by
+     * position, which is fine when the four are always the same four, and here they are.
+     */
+    &.fls_stat_success .fls_stat_icon {
+        background: var(--fls-tile-success-bg);
+        color: var(--fls-tile-success-fg);
+    }
+
+    &.fls_stat_failed .fls_stat_icon {
+        background: var(--fls-tile-failed-bg);
+        color: var(--fls-tile-failed-fg);
+    }
+
+    &.fls_stat_blocked .fls_stat_icon {
+        background: var(--fls-tile-blocked-bg);
+        color: var(--fls-tile-blocked-fg);
+    }
+
+    &.fls_stat_two_fa .fls_stat_icon {
+        background: var(--fls-tile-two-fa-bg);
+        color: var(--fls-tile-two-fa-fg);
+    }
+
+    .fls_stat_title {
+        @apply text-xs font-medium text-ink-mid m-0;
+
+        line-height: 16px;
+        margin-bottom: 2px;
+    }
+
+    .fls_stat_value {
+        @apply flex items-baseline m-0;
+
+        gap: 6px;
+        font-size: 20px;
+        font-weight: 500;
+        line-height: 28px;
+        color: var(--fls-heading);
+
+        small {
+            @apply text-xs font-normal text-ink-light;
+        }
+    }
+}
+
+/* ------------------------------------------------------------------- card */
+
+.fls_dcard {
+    @apply bg-surface rounded border border-solid;
+
+    border-color: var(--fls-card-line);
+    box-shadow: var(--fls-shadow-card);
+    margin-bottom: 24px;
+
+    &:last-child {
+        margin-bottom: 0;
+    }
+
+    .fls_dcard_head {
+        @apply flex flex-wrap items-center justify-between border-0 border-b border-solid border-hairline;
+
+        gap: 8px;
+        padding: 20px;
+        min-height: 61px;
+
+        h2 {
+            @apply flex items-center text-base font-medium m-0;
+
+            gap: 10px;
+            color: var(--fls-text);
+        }
+
+        a,
+        .fls_dcard_link {
+            @apply no-underline cursor-pointer;
+
+            font-size: 13px;
+            color: var(--fls-accent);
+
+            &:hover {
+                @apply underline;
+            }
+
+            &:focus {
+                box-shadow: none;
+            }
+        }
+
+        /* A fact about what is in the card, not something to click - so it is not a link. */
+        .fls_dcard_meta {
+            @apply text-xs text-ink-light flex-none;
+        }
+    }
+
+    .fls_dcard_body {
+        padding: 20px;
+
+        &.is_flush {
+            padding: 0;
+        }
+    }
+}
+
+/*
+ * Two cards abreast, stacking once one of them would be narrower than a log row reads at.
+ * Measured against the grid rather than the viewport, for the same reason as the tiles.
+ */
+.fls_dcard_pair {
+    @apply grid;
+
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+    margin-bottom: 24px;
+
+    .fls_dcard {
+        margin-bottom: 0;
+    }
+}
+
+/* An empty panel says what would be here, quietly, at the height of a full one. */
+.fls_dash_empty {
+    @apply flex flex-col items-center justify-center text-center text-xs text-ink-light;
+
+    min-height: 180px;
+    padding: 20px;
+
+    svg {
+        @apply text-ink-light;
+
+        width: 28px;
+        height: 28px;
+        margin-bottom: 10px;
+    }
+}
+
+/* ------------------------------------------------------------------ chart */
+
+.fls_chart {
+    @apply relative;
+
+    /* Scoped to the chart, not the legend: the tooltip rows carry the same dots. */
+    .fls_chart_swatch {
+        @apply block flex-none rounded-full;
+
+        width: 8px;
+        height: 8px;
+    }
+
+    .fls_chart_legend {
+        @apply flex flex-wrap items-center;
+
+        gap: 16px;
+
+        .fls_chart_legend_item {
+            @apply flex items-center text-xs text-ink-mid;
+
+            gap: 6px;
+        }
+    }
+
+    /*
+     * The plot is a fixed-height box the columns are measured against, with 18px of room
+     * kept at the bottom for the x labels and 34px at the left for the axis numbers, so a
+     * bar at 100% reaches the top gridline exactly.
+     */
+    .fls_chart_plot {
+        @apply relative w-full;
+
+        --fls-chart-axis: 34px;
+        --fls-chart-labels: 18px;
+
+        margin-top: 12px;
+        height: 210px;
+    }
+
+    /* The y axis: five faint lines and their numbers, drawn behind the bars. */
+    /*
+     * The bar area, inset from the plot by the axis numbers and the x labels. Everything
+     * inside it is sized in percentages, and they all resolve against this one box - which
+     * is the whole reason it exists rather than each layer insetting itself.
+     */
+    .fls_chart_area {
+        @apply absolute;
+
+        left: var(--fls-chart-axis);
+        right: 0;
+        top: 0;
+        bottom: var(--fls-chart-labels);
+    }
+
+    .fls_chart_grid {
+        @apply absolute;
+
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+    }
+
+    .fls_chart_grid_row {
+        @apply absolute;
+
+        left: 0;
+        right: 0;
+        height: 0;
+        border-top: 1px solid var(--fls-border);
+
+        /* Outside the plot, right-aligned against it, so the numbers make one column. */
+        .fls_chart_grid_label {
+            @apply absolute text-ink-light;
+
+            right: calc(100% + 8px);
+            font-size: 10px;
+            line-height: 1;
+            white-space: nowrap;
+            transform: translateY(-50%);
+        }
+    }
+
+    .fls_chart_cols {
+        @apply absolute flex items-end;
+
+        left: 0;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        gap: 2px;
+    }
+
+    /*
+     * The whole column is the hover target, not the bar in it: on a quiet day the bar is a
+     * couple of pixels tall, and a target that small is a target you cannot hit.
+     */
+    .fls_chart_col {
+        @apply relative flex flex-col justify-end flex-1;
+
+        min-width: 0;
+        height: 100%;
+        border-radius: 3px 3px 0 0;
+
+        /* A wash the same colour as a hovered row, so the column reads as the target. */
+        &:hover,
+        &.is_active {
+            background: var(--fls-surface-sunk);
+        }
+    }
+
+    /* Segments stack from the top down, so the first child is the topmost status. */
+    .fls_chart_stack {
+        @apply flex flex-col justify-end w-full;
+
+        min-height: 2px;
+    }
+
+    .fls_chart_seg {
+        @apply block w-full;
+
+        min-height: 2px;
+    }
+
+    /* Under the bar area, centred on its own column. */
+    .fls_chart_x_label {
+        @apply absolute text-ink-light w-full text-center;
+
+        left: 0;
+        top: calc(100% + 4px);
+        font-size: 10px;
+        line-height: 14px;
+        white-space: nowrap;
+    }
+
+    .fls_chart_tip {
+        @apply absolute bg-surface rounded-sm border border-solid border-hairline;
+
+        padding: 8px 10px;
+        min-width: 148px;
+        box-shadow: var(--fls-shadow-pop);
+        /* Anchored by `bottom` and centred by an inline transform - see tipStyle. */
+        pointer-events: none;
+        z-index: 3;
+
+        .fls_chart_tip_title {
+            @apply text-xs font-medium;
+
+            color: var(--fls-text);
+            margin-bottom: 6px;
+        }
+
+        .fls_chart_tip_row {
+            @apply flex items-center justify-between text-xs text-ink-mid;
+
+            gap: 12px;
+            line-height: 18px;
+
+            > span {
+                @apply flex items-center;
+
+                gap: 6px;
+            }
+
+            b {
+                @apply font-medium;
+
+                color: var(--fls-text);
+            }
+        }
+    }
+}
+
+/* -------------------------------------------------------------- log lists */
+
+/*
+ * A list rather than a table. These are previews of six rows with a link to the real
+ * table beside them, and a table's header row and column rules cost more space than they
+ * earn at that size.
+ */
+.fls_dash_list {
+    @apply m-0 p-0 list-none;
+
+    > li {
+        @apply flex items-center justify-between border-0 border-b border-solid border-hairline;
+
+        gap: 12px;
+        margin: 0;
+        padding: 12px 20px;
+
+        &:last-child {
+            @apply border-b-0;
+        }
+
+        &:hover {
+            @apply bg-surface-sunk;
+        }
+    }
+
+    .fls_dash_list_main {
+        min-width: 0;
+    }
+
+    .fls_dash_list_title {
+        @apply flex items-center text-sm font-medium;
+
+        gap: 6px;
+        color: var(--fls-text);
+
+        > span {
+            @apply truncate;
+        }
+    }
+
+    .fls_dash_list_meta {
+        @apply text-xs text-ink-light truncate;
+
+        margin-top: 2px;
+    }
+
+    .fls_dash_list_aside {
+        @apply flex-none text-right text-xs text-ink-light;
+    }
+
+    /*
+     * The action stays out of the way until the row is pointed at - a column of buttons
+     * down a list of facts reads as a list of buttons.
+     */
+    .fls_dash_list_action {
+        @apply flex-none opacity-0;
+
+        transition: opacity .15s ease;
+    }
+
+    > li:hover .fls_dash_list_action,
+    .fls_dash_list_action:focus {
+        @apply opacity-100;
+    }
+
+    .fls_dash_list_count {
+        @apply block text-sm font-medium;
+
+        color: var(--fls-text);
+    }
+}
+
+/* Method share: a label, a count, and a bar the width of its share. */
+.fls_dash_bars {
+    @apply flex flex-col;
+
+    gap: 14px;
+
+    .fls_dash_bar_head {
+        @apply flex items-center justify-between text-sm;
+
+        gap: 12px;
+        color: var(--fls-text);
+        margin-bottom: 6px;
+
+        b {
+            @apply font-medium;
+        }
+
+        span {
+            @apply text-xs text-ink-light;
+        }
+    }
+
+    .fls_dash_bar_track {
+        @apply w-full rounded-xs bg-surface-raised overflow-hidden;
+
+        height: 6px;
+    }
+
+    .fls_dash_bar_fill {
+        @apply h-full rounded-xs;
+
+        background: #4D6EF5;
+        transition: width .3s ease;
+    }
+}
+
+/* --------------------------------------------------------------- checklist */
+
+.fls_dash_score {
+    margin-bottom: 16px;
+
+    .fls_dash_score_track {
+        @apply w-full rounded-xs bg-surface-raised overflow-hidden;
+
+        height: 6px;
+    }
+
+    .fls_dash_score_fill {
+        @apply h-full rounded-xs;
+
+        background: #189877;
+        transition: width .3s ease;
+    }
+}
+
+.fls_dash_checklist {
+    @apply flex flex-col m-0 p-0 list-none;
+
+    gap: 16px;
+
+    > li {
+        @apply m-0;
+    }
+
+    /*
+     * A row is a mark, a title that links to the setting, and - when the protection can be
+     * turned on from here - a button that does it. The button is why the row is no longer
+     * one big link: a link wrapping a button is not a thing that can be clicked reliably.
+     */
+    .fls_dash_check {
+        @apply flex items-start;
+
+        gap: 12px;
+    }
+
+    .fls_dash_check_body {
+        @apply flex-1;
+
+        min-width: 0;
+    }
+
+    /* Dashed while it is undone, solid and filled once it is - the same tell as FluentCart. */
+    .fls_dash_check_mark {
+        @apply flex flex-none items-center justify-center rounded-full;
+
+        width: 20px;
+        height: 20px;
+        margin-top: 1px;
+        border-width: 1.5px;
+        border-style: dashed;
+        border-color: var(--fls-text-mid);
+
+        svg {
+            width: 12px;
+            height: 12px;
+        }
+    }
+
+    .is_done .fls_dash_check_mark {
+        @apply bg-accent text-accent-on;
+
+        border-style: solid;
+        border-color: var(--fls-accent);
+    }
+
+    /*
+     * Not a tick and not an empty circle: this one is off because something needs it off,
+     * which is neither done nor outstanding. Amber says "read this", not "fix this".
+     */
+    .is_in_use .fls_dash_check_mark {
+        @apply bg-caution-bg;
+
+        border-style: solid;
+        border-color: var(--fls-warning-fg);
+    }
+
+    .fls_dash_check_dot {
+        @apply block rounded-full;
+
+        width: 6px;
+        height: 6px;
+        background: var(--fls-warning-fg);
+    }
+
+    .fls_dash_check_title {
+        @apply block text-sm text-ink-mid no-underline;
+
+        &:hover {
+            @apply underline;
+
+            color: var(--fls-text);
+        }
+
+        &:focus {
+            box-shadow: none;
+            outline: none;
+        }
+    }
+
+    /* The evidence for the state, when there is any: "in use by 2 users". */
+    .fls_dash_check_note {
+        @apply text-xs text-ink-light m-0;
+
+        margin-top: 3px;
+        line-height: 1.5;
+    }
+
+    .fls_dash_check_action {
+        @apply flex-none;
+
+        margin-top: -2px;
+    }
+}
+
+/* Standing facts about the site: a label on the left, the answer on the right. */
+.fls_dash_facts {
+    @apply flex flex-col m-0 p-0 list-none;
+
+    gap: 12px;
+
+    > li {
+        @apply flex items-center justify-between text-sm m-0;
+
+        gap: 12px;
+
+        .fls_dash_fact_label {
+            @apply text-ink-mid;
+        }
+
+        /*
+         * wp-admin underlines every link in the content area, which on a right-aligned
+         * value reads as a correction rather than something to click. Underlined on hover
+         * instead, the way the card links are.
+         */
+        .fls_dash_fact_value {
+            @apply flex-none font-medium text-right no-underline;
+
+            color: var(--fls-text);
+
+            &:hover {
+                @apply underline;
+            }
+
+            &:focus {
+                box-shadow: none;
+            }
+        }
+    }
+
+    /* An answer worth doing something about, so it is coloured like one. */
+    .is_warning .fls_dash_fact_value {
+        @apply text-caution-fg;
+    }
+}
+
+.fls_dash_promo {
+    p {
+        @apply text-sm text-ink-mid;
+
+        margin: 0 0 12px;
+    }
+
+    ul {
+        @apply list-none m-0 p-0;
+
+        margin-bottom: 16px;
+
+        li {
+            @apply flex items-start text-sm text-ink-mid;
+
+            gap: 8px;
+            margin: 0 0 8px;
+        }
+
+        svg {
+            @apply flex-none text-ok-fg;
+
+            width: 16px;
+            height: 16px;
+            margin-top: 3px;
+        }
+    }
+}
+

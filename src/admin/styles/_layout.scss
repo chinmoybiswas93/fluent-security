@@ -7,11 +7,6 @@
  * which survives the plugin being rendered inside whatever wp-admin gives it.
  */
 
-:root {
-    /* FluentCart's --body-bg. Declared here because <body> itself is painted with it. */
-    --fls-body-bg: #F3F5FA;
-}
-
 /* --------------------------------------------------------------- wp-admin fit */
 
 /*
@@ -79,7 +74,7 @@ body.toplevel_page_fluent-auth {
         }
 
         &:focus-visible {
-            outline: 2px solid #253241;
+            outline: 2px solid var(--fls-accent);
             outline-offset: -1px;
         }
     }
@@ -96,7 +91,7 @@ body.toplevel_page_fluent-auth {
 }
 
 .fls_app_bar {
-    @apply flex items-center gap-6 bg-white px-6 border-0 border-b border-solid border-gray-divider;
+    @apply flex items-center gap-6 bg-surface px-6 border-0 border-b border-solid border-hairline;
 
     height: 56px;
 
@@ -116,7 +111,7 @@ body.toplevel_page_fluent-auth {
     transition: box-shadow .2s ease;
 
     &.is-scrolled {
-        box-shadow: 0 1px 8px rgba(16, 24, 40, .06);
+        box-shadow: var(--fls-shadow-lift);
     }
 
     .fls_app_logo {
@@ -126,6 +121,15 @@ body.toplevel_page_fluent-auth {
             max-width: 132px;
             height: auto;
             display: block;
+        }
+
+        /*
+         * The wordmark is one near-black colour on transparent, so the dark theme recolours
+         * it rather than loading a second file: flattened to black, then inverted to just
+         * short of white - the same step off pure white the text beside it takes.
+         */
+        .fluent_theme_dark & img {
+            filter: brightness(0) invert(.96);
         }
     }
 
@@ -137,16 +141,16 @@ body.toplevel_page_fluent-auth {
         }
 
         a {
-            @apply flex items-center rounded px-3 py-2 text-sm font-medium no-underline text-system-mid;
+            @apply flex items-center rounded px-3 py-2 text-sm font-medium no-underline text-ink-mid;
 
             transition: background-color .15s ease, color .15s ease;
 
             &:hover {
-                @apply bg-gray-25 text-system-dark;
+                @apply bg-surface-sunk text-ink;
             }
 
             &.router-link-active {
-                @apply bg-primary-25 text-system-dark;
+                @apply bg-accent-wash text-ink;
             }
         }
     }
@@ -157,6 +161,217 @@ body.toplevel_page_fluent-auth {
 
     .fls_app_bar_toggle {
         display: none;
+    }
+}
+
+/* ------------------------------------------------------------ theme switch */
+
+/*
+ * FluentCart puts its theme control at the right-hand end of its own bar, at the same size
+ * and with the same glyphs, so the two plugins are switched the same way in the same place.
+ */
+.fls_theme_trigger {
+    @apply flex items-center justify-center flex-none cursor-pointer bg-transparent text-ink-mid;
+
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    transition: background-color .15s ease, color .15s ease;
+
+    svg {
+        width: 18px;
+        height: 18px;
+        display: block;
+    }
+
+    &:hover {
+        @apply bg-surface-sunk text-ink;
+    }
+
+    &:focus {
+        box-shadow: none;
+        outline: none;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--fls-accent);
+        outline-offset: -1px;
+    }
+}
+
+/* Teleported to <body>, so it is styled here rather than beside the trigger. */
+.fls_theme_menu {
+    .fls_theme_item {
+        @apply flex items-center;
+
+        gap: 8px;
+    }
+
+    .fls_theme_item_icon {
+        @apply flex flex-none items-center;
+
+        svg {
+            width: 16px;
+            height: 16px;
+        }
+    }
+
+    /* The one in force, marked by weight rather than by a tick that shifts the row. */
+    .is_current {
+        @apply font-medium text-ink;
+    }
+}
+
+/* ---------------------------------------------------- two-column page shell */
+
+/*
+ * The layout the dashboard and the security scans screen share: what is happening on the
+ * left, what is configured on the right. It lives here rather than with either of them
+ * because it belongs to neither.
+ *
+ * The measurements are FluentCart's own, read off its rendered dashboard: a 1350px column
+ * centred in the page, split into a fluid main column and a 380px aside with a 24px
+ * gutter. 28px lands the first row of content the same distance below the app bar as
+ * FluentCart's lands below its own header, and 30px either side is its page gutter.
+ */
+.fls_page {
+    padding: 28px 30px;
+}
+
+.fls_page_inner {
+    @apply grid mx-auto;
+
+    max-width: 1350px;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    grid-template-areas: "main aside";
+    gap: 24px;
+    align-items: start;
+}
+
+.fls_page_main {
+    grid-area: main;
+    min-width: 0;
+}
+
+/*
+ * FluentCart's aside is a full-height scrolling column of its own. Here the page scrolls
+ * as one - the app bar is the only pinned thing on these screens - so the aside sticks
+ * below that bar instead and scrolls internally only if it is taller than what is left of
+ * the viewport. 88px is the admin bar plus the app bar; 116px is that plus the bottom gap.
+ */
+.fls_page_aside {
+    @apply bg-surface rounded;
+
+    grid-area: aside;
+    min-width: 0;
+    padding: 20px;
+    position: sticky;
+    top: 88px;
+    max-height: calc(100vh - 116px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+/*
+ * What the screen is, and what you can do to it. Used by the auth log, the security scans
+ * screen and anything else that owns its page rather than sitting inside the settings
+ * shell - which draws its own header bar instead.
+ */
+.fls_page_head {
+    @apply flex flex-wrap items-center justify-between;
+
+    gap: 12px;
+    min-height: 36px;
+    margin-bottom: 20px;
+
+    .fls_page_title {
+        @apply m-0 p-0;
+
+        font-size: 20px;
+        font-weight: 600;
+        line-height: 28px;
+        color: var(--fls-text);
+    }
+
+    .fls_page_desc {
+        @apply text-sm text-ink-mid m-0;
+
+        margin-top: 4px;
+        line-height: 1.5;
+        max-width: 640px;
+    }
+
+    .fls_page_actions {
+        @apply flex flex-wrap items-center flex-none;
+
+        gap: 12px;
+    }
+}
+
+/* One subject within the aside, separated from the next by a dashed rule. */
+.fls_aside_block {
+    @apply border-0 border-b border-dashed;
+
+    border-color: var(--fls-border-strong);
+    padding-bottom: 24px;
+    margin-bottom: 24px;
+
+    &:last-child {
+        @apply border-b-0;
+
+        padding-bottom: 0;
+        margin-bottom: 0;
+    }
+
+    > h3 {
+        @apply flex items-center justify-between font-medium m-0;
+
+        gap: 8px;
+        /* FluentCart's own aside heading size, a step below the card titles beside it. */
+        font-size: 15px;
+        color: var(--fls-text);
+        margin-bottom: 16px;
+
+        small {
+            @apply text-xs font-normal text-ink-light;
+        }
+    }
+
+    > p {
+        @apply text-sm text-ink-mid;
+
+        margin: 0 0 12px;
+        line-height: 1.6;
+    }
+
+    > p:last-child {
+        margin-bottom: 0;
+    }
+}
+
+/*
+ * The aside is a column beside the content, not a panel that belongs anywhere in
+ * particular, so below the width where two columns fit it goes back to being a block at
+ * the end of the page rather than trying to stay stuck to anything.
+ */
+@media (max-width: 1180px) {
+    .fls_page_inner {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "main" "aside";
+    }
+
+    .fls_page_aside {
+        position: static;
+        max-height: none;
+        overflow: visible;
+    }
+}
+
+@media (max-width: 782px) {
+    .fls_page {
+        padding: 20px 12px;
     }
 }
 
@@ -182,13 +397,13 @@ body.toplevel_page_fluent-auth {
 }
 
 .fls_settings_nav {
-    @apply bg-white flex-shrink-0 flex flex-col border-0 border-r border-solid border-gray-divider;
+    @apply bg-surface flex-shrink-0 flex flex-col border-0 border-r border-solid border-hairline;
 
     width: 260px;
     height: 100%;
 
     .fls_settings_nav_title {
-        @apply flex items-center gap-2 flex-shrink-0 text-base font-medium text-system-dark px-5 border-0 border-b border-solid border-gray-divider;
+        @apply flex items-center gap-2 flex-shrink-0 text-base font-medium text-ink px-5 border-0 border-b border-solid border-hairline;
 
         min-height: 52px;
         margin: 0;
@@ -210,7 +425,7 @@ body.toplevel_page_fluent-auth {
         }
 
         &:hover::-webkit-scrollbar-thumb {
-            @apply bg-gray-200;
+            @apply bg-hairline-strong;
         }
     }
 
@@ -219,14 +434,14 @@ body.toplevel_page_fluent-auth {
     }
 
     a {
-        @apply relative flex items-center gap-2.5 rounded px-2.5 py-2 text-sm font-medium no-underline text-system-mid;
+        @apply relative flex items-center gap-2.5 rounded px-2.5 py-2 text-sm font-medium no-underline text-ink-mid;
 
         min-height: 36px;
         white-space: nowrap;
         transition: background-color .15s ease, color .15s ease;
 
         &:hover {
-            @apply bg-primary-25 text-system-dark;
+            @apply bg-accent-wash text-ink;
         }
 
         .fls_nav_icon {
@@ -249,7 +464,7 @@ body.toplevel_page_fluent-auth {
     }
 
     .is-active > a {
-        @apply bg-primary-25 text-system-dark;
+        @apply bg-accent-wash text-ink;
 
         .fls_nav_chevron {
             @apply opacity-100;
@@ -267,7 +482,7 @@ body.toplevel_page_fluent-auth {
 
         &::before {
             content: '';
-            @apply absolute bg-gray-100 rounded;
+            @apply absolute bg-surface-raised rounded;
 
             left: 18px;
             top: 50%;
@@ -277,11 +492,11 @@ body.toplevel_page_fluent-auth {
         }
 
         a {
-            @apply bg-transparent text-system-mid;
+            @apply bg-transparent text-ink-mid;
 
             &::before {
                 content: '';
-                @apply absolute bg-primary-500 rounded;
+                @apply absolute bg-accent rounded;
 
                 left: -8px;
                 top: 8px;
@@ -292,7 +507,7 @@ body.toplevel_page_fluent-auth {
 
             &.router-link-exact-active,
             &.is-current {
-                @apply bg-transparent font-medium text-system-dark;
+                @apply bg-transparent font-medium text-ink;
 
                 &::before {
                     width: 2px;
@@ -315,7 +530,7 @@ body.toplevel_page_fluent-auth {
 /* ------------------------------------------------------ settings header */
 
 .fls_settings_header {
-    @apply flex items-center bg-white px-7 border-0 border-b border-solid border-gray-divider;
+    @apply flex items-center bg-surface px-7 border-0 border-b border-solid border-hairline;
 
     min-height: 52px;
 
@@ -325,13 +540,13 @@ body.toplevel_page_fluent-auth {
     z-index: 9;
 
     h1 {
-        @apply text-base font-medium text-system-dark m-0;
+        @apply text-base font-medium text-ink m-0;
 
         line-height: 24px;
     }
 
     .fls_settings_header_desc {
-        @apply text-xs text-system-light m-0;
+        @apply text-xs text-ink-light m-0;
 
         margin-top: 2px;
     }
@@ -341,13 +556,12 @@ body.toplevel_page_fluent-auth {
     }
 
     /*
-     * The bar itself spans the pane so its background and rule do; only its contents are
-     * capped, which keeps Save directly above the right edge of the cards it saves.
+     * The bar spans the pane, so the title sits at the pane's left edge and Save at its
+     * right - the two pushed as far apart as the bar goes. It is a bar for the whole
+     * screen rather than a caption on the column below it, so it is not capped to match.
      */
     .fls_settings_header_inner {
         @apply flex items-center justify-between gap-4 w-full;
-
-        max-width: calc(var(--fls-content-width) - 56px);
     }
 }
 
@@ -355,9 +569,12 @@ body.toplevel_page_fluent-auth {
  * A settings form does not get better for being wider - the text inside it is capped
  * well before this, so past a point the cards only add empty space to the right of their
  * own content. FluentCart leaves this uncapped and grows to the viewport; this does not.
+ *
+ * The leftover width is split either side rather than all dumped to the right, so the
+ * column sits in the middle of the pane.
  */
 .fls_settings_content {
-    @apply p-7;
+    @apply p-7 mx-auto;
 
     max-width: var(--fls-content-width);
 }
@@ -374,7 +591,7 @@ body.toplevel_page_fluent-auth {
 /* ---------------------------------------------------------- setting card */
 
 .fls_card {
-    @apply bg-white rounded border border-solid border-gray-divider;
+    @apply bg-surface rounded border border-solid border-hairline;
 
     margin-bottom: 20px;
 
@@ -383,17 +600,17 @@ body.toplevel_page_fluent-auth {
     }
 
     .fls_card_head {
-        @apply flex items-start justify-between gap-4 px-6 border-0 border-b border-solid border-gray-divider;
+        @apply flex items-start justify-between gap-4 px-6 border-0 border-b border-solid border-hairline;
 
         padding-top: 16px;
         padding-bottom: 16px;
 
         h2 {
-            @apply text-sm font-medium text-system-dark m-0;
+            @apply text-sm font-medium text-ink m-0;
         }
 
         p {
-            @apply text-xs text-system-light m-0;
+            @apply text-xs text-ink-light m-0;
 
             margin-top: 4px;
         }
@@ -416,7 +633,7 @@ body.toplevel_page_fluent-auth {
 /* Something to copy out: a block for several lines, inline for one value. */
 .fls_code,
 .fls_code_inline {
-    @apply bg-gray-25 text-system-dark border border-solid border-gray-divider rounded;
+    @apply bg-surface-sunk text-ink border border-solid border-hairline rounded;
 
     font-family: Menlo, Consolas, monospace;
     font-size: 12px;
@@ -439,9 +656,47 @@ body.toplevel_page_fluent-auth {
 }
 
 .fls_note {
-    @apply text-xs text-system-light;
+    @apply text-xs text-ink-light;
 
     margin: 16px 0;
+}
+
+/*
+ * A status, as a word. Shared by the dashboard's log lists, the logs table and the
+ * enrollment table, which is why it lives here rather than with any one of them.
+ *
+ * The logs table used to tint the whole row instead - a pink row for blocked, yellow for
+ * failed. Three coloured bands across a full-width table is a lot of colour for a fact that
+ * fits in one word, and it left no way to colour anything else in the row.
+ *
+ * The auth statuses come straight off the log row's `status`, so those three keep their
+ * own names; the rest are named after the colour they carry, for the tables whose statuses
+ * are not log statuses.
+ */
+.fls_tag {
+    @apply inline-block flex-none rounded-xs text-xs font-medium;
+
+    padding: 1px 7px;
+    line-height: 18px;
+    white-space: nowrap;
+
+    &.is_blocked {
+        @apply bg-danger-bg text-danger-fg;
+    }
+
+    &.is_failed,
+    &.is_warning {
+        @apply bg-caution-bg text-caution-fg;
+    }
+
+    &.is_success {
+        @apply bg-ok-bg text-ok-fg;
+    }
+
+    /* Nothing is wrong and nothing has happened - it should not draw the eye either way. */
+    &.is_neutral {
+        @apply bg-surface-raised text-ink-mid;
+    }
 }
 
 /* A table sits flush inside its card - the card already draws the frame. */
@@ -456,6 +711,100 @@ body.toplevel_page_fluent-auth {
     margin-top: 16px;
 }
 
+/* --------------------------------------------------------- rules table */
+
+/*
+ * The IP allow and block lists: a row of fields per entry rather than a form per entry,
+ * because the whole value of these lists is being able to read down them and see what is
+ * exempt and why.
+ */
+.fls_rules_table {
+    @apply w-full;
+
+    border-collapse: collapse;
+    margin: 4px 0 8px;
+
+    th {
+        @apply text-xs font-medium text-ink-mid text-left border-0 border-b border-solid border-hairline;
+
+        padding: 0 8px 8px;
+
+        &:first-child {
+            padding-left: 0;
+        }
+    }
+
+    td {
+        @apply align-top;
+
+        padding: 10px 8px;
+
+        &:first-child {
+            padding-left: 0;
+        }
+    }
+
+    /* The address is the row's subject, the note beside it is prose - so it gets more room. */
+    th:nth-child(1),
+    td:nth-child(1) {
+        width: 32%;
+    }
+
+    th:nth-child(3),
+    td:nth-child(3) {
+        width: 180px;
+    }
+
+    .fls_rules_remove {
+        width: 44px;
+        text-align: right;
+        padding-right: 0;
+    }
+
+    /* Still listed, still editable, simply not in force - so it is dimmed, not hidden. */
+    tr.is_expired {
+        .el-input__wrapper {
+            opacity: .65;
+        }
+    }
+}
+
+/*
+ * Sits below the rows, separated by the same hairline the header uses, so the button reads
+ * as the end of the list rather than another row in it.
+ */
+.fls_rules_add {
+    @apply border-0 border-t border-solid border-hairline;
+
+    padding-top: 12px;
+    margin-top: 4px;
+}
+
+.fls_rules_flag {
+    @apply inline-block text-xs text-ink-light;
+
+    margin-top: 4px;
+
+    &.is_warning {
+        @apply text-caution-fg;
+    }
+
+    &.is_danger {
+        @apply text-danger-fg;
+    }
+}
+
+/* Alerts inside a settings card sit in the flow of the card, not against its edge. */
+.fls_row_alert.el-alert {
+    margin: 4px 0 12px;
+
+    a {
+        @apply font-medium;
+
+        color: inherit;
+    }
+}
+
 /* -------------------------------------------------------- setting toggle */
 
 /*
@@ -464,7 +813,7 @@ body.toplevel_page_fluent-auth {
  * down the card and the switches make a second, narrower one.
  */
 .fls_toggle {
-    @apply border-0 border-b border-solid border-gray-divider;
+    @apply border-0 border-b border-solid border-hairline;
 
     padding-top: 10px;
     padding-bottom: 10px;
@@ -478,12 +827,12 @@ body.toplevel_page_fluent-auth {
     }
 
     .fls_toggle_title {
-        @apply text-sm font-medium text-system-dark cursor-pointer select-none;
+        @apply text-sm font-medium text-ink cursor-pointer select-none;
     }
 
     /* Only shown when the setting is not what it ought to be, so it reads as a flag. */
     .fls_toggle_tag {
-        @apply text-xs font-normal text-warning-700 bg-warning-50 rounded;
+        @apply text-xs font-normal text-caution-fg bg-caution-bg rounded;
 
         margin-left: 8px;
         padding: 1px 7px;
@@ -496,7 +845,7 @@ body.toplevel_page_fluent-auth {
         max-width: 772px;
 
         p {
-            @apply text-xs text-system-light m-0;
+            @apply text-xs text-ink-light m-0;
 
             margin-top: 3px;
             line-height: 1.5;
@@ -508,7 +857,7 @@ body.toplevel_page_fluent-auth {
     }
 
     &.is-disabled .fls_toggle_title {
-        @apply text-system-light cursor-not-allowed;
+        @apply text-ink-light cursor-not-allowed;
     }
 }
 
@@ -524,7 +873,7 @@ body.toplevel_page_fluent-auth {
  * control is only as wide as it needs to be, which halves the height of a typical row.
  */
 .fls_row {
-    @apply flex items-start gap-6 border-0 border-b border-solid border-gray-divider;
+    @apply flex items-start gap-6 border-0 border-b border-solid border-hairline;
 
     padding-top: 12px;
     padding-bottom: 12px;
@@ -544,11 +893,11 @@ body.toplevel_page_fluent-auth {
 
         label,
         .fls_row_title {
-            @apply block text-sm font-medium text-system-dark m-0;
+            @apply block text-sm font-medium text-ink m-0;
         }
 
         p {
-            @apply text-xs text-system-light m-0;
+            @apply text-xs text-ink-light m-0;
 
             margin-top: 3px;
             line-height: 1.5;
@@ -556,7 +905,7 @@ body.toplevel_page_fluent-auth {
     }
 
     .fls_row_hint {
-        @apply text-xs text-system-light;
+        @apply text-xs text-ink-light;
 
         margin-top: 5px !important;
         font-style: italic;
@@ -579,7 +928,7 @@ body.toplevel_page_fluent-auth {
         }
 
         > p {
-            @apply text-xs text-system-light;
+            @apply text-xs text-ink-light;
 
             margin: 6px 0 0;
         }

@@ -20,10 +20,16 @@ class LogsController
             }
         }
 
+        /*
+         * The address is searched as well as the name. Following one attacker across a log
+         * is the most common reason to search it at all, and until now the only way to do
+         * that was to read every page looking for the same number.
+         */
         if ($search = $request->get_param('search')) {
             $search = sanitize_text_field($search);
             $query->where(function ($q) use ($search) {
                 $q->where('username', 'LIKE', '%' . $search . '%');
+                $q->orWhere('ip', 'LIKE', '%' . $search . '%');
                 $q->orWhere('media', 'LIKE', '%' . $search . '%');
                 return $q;
             });
@@ -32,12 +38,34 @@ class LogsController
         $logs = $query->paginate();
 
         $wpTimestamp = current_time('timestamp');
+        $dateFormat = get_option('date_format') . ' ' . get_option('time_format');
+
         foreach ($logs['data'] as $log) {
-            $log->human_time_diff = human_time_diff(strtotime($log->created_at), $wpTimestamp) . ' ago';
+            $timestamp = strtotime($log->created_at);
+
+            /* translators: %s: a human readable time difference, e.g. "5 mins" */
+            $log->human_time_diff = sprintf(
+                __('%s ago', 'fluent-security'),
+                human_time_diff($timestamp, $wpTimestamp)
+            );
+
+            // The exact moment, in the format and language the site is set to.
+            $log->created_at_human = date_i18n($dateFormat, $timestamp);
+
+            $log->media_label = Helper::getLoginMediaLabel($log->media);
         }
 
         return [
-            'logs' => $logs
+            'logs' => $logs,
+            /*
+             * How long these rows last. The screen says so because the log deletes itself
+             * on a schedule, and a gap where last month used to be otherwise reads as
+             * something having gone wrong rather than as the setting doing its job.
+             *
+             * Sent with the rows rather than read from the settings the admin screen was
+             * booted with, so changing the number and coming back shows the new one.
+             */
+            'retention' => (int)Helper::getSetting('auto_delete_logs_day')
         ];
     }
 
@@ -61,68 +89,5 @@ class LogsController
             'message' => __('All Logs has been deleted', 'fluent-security')
         ];
 
-    }
-
-    public static function quickStats(\WP_REST_Request $request)
-    {
-        $fromRange = sanitize_text_field($request->get_param('day_range'));
-
-        if (!$fromRange) {
-            $fromRange = '-0 days';
-        }
-
-        $wpTimestamp = current_time('timestamp');
-
-        if ($fromRange == 'this_month') {
-            $fromDate = date('Y-m-01 00:00:00', $wpTimestamp);
-        } else if ($fromRange == 'all_time') {
-            $fromDate = '1970-01-01 00:00:00';
-        } else {
-            $fromDate = date('Y-m-d 00:00:00', strtotime($fromRange, $wpTimestamp));
-        }
-
-        $toDate = date('Y-m-d 23:59:59', $wpTimestamp);
-
-        $counts = flsDb()->table('fls_auth_logs')
-            ->select(['status', flsDb()->raw('count(*) as total')])
-            ->whereBetween('created_at', $fromDate, $toDate)
-            ->groupBy('status')
-            ->get();
-
-        $items = [
-            'failed'  => [
-                'count' => 0,
-                'title' => __('Failed Logins', 'fluent-security')
-            ],
-            'blocked' => [
-                'count' => 0,
-                'title' => __('Blocked Logins', 'fluent-security')
-            ],
-            'success' => [
-                'count' => 0,
-                'title' => __('Successful Logins', 'fluent-security')
-            ]
-        ];
-
-        foreach ($counts as $countItem) {
-            if (isset($items[$countItem->status])) {
-                $items[$countItem->status]['count'] = $countItem->total;
-            }
-        }
-
-        if (Helper::getSetting('magic_login') === 'yes') {
-            $items['magic_login'] = [
-                'title' => __('Login via URL', 'fluent-security'),
-                'count' => flsDb()->table('fls_login_hashes')
-                    ->where('status', 'used')
-                    ->where('use_type', 'magic_login')
-                    ->whereBetween('created_at', $fromDate, $toDate)
-                    ->count()
-            ];
-        }
-
-        return [
-            'stats' => $items
-        ];
     }
 }

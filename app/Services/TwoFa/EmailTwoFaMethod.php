@@ -62,6 +62,26 @@ class EmailTwoFaMethod extends BaseTwoFaMethod
      * @param $user \WP_User
      * @return bool
      */
+    /**
+     * Whether this method is in force for anybody at all.
+     *
+     * Switched on and given no roles is switched on for nobody, so both halves have to
+     * hold. Asked by screens that report on second factors rather than apply them - the
+     * enrollment list has nothing to list if no method is live.
+     *
+     * @return bool
+     */
+    public static function isEnabledForAnyRole()
+    {
+        if (Helper::getSetting('email2fa') !== 'yes') {
+            return false;
+        }
+
+        $roles = Helper::getSetting('email2fa_roles');
+
+        return is_array($roles) && (bool)$roles;
+    }
+
     public function isAvailableForUser($user)
     {
         if (Helper::getSetting('email2fa') !== 'yes') {

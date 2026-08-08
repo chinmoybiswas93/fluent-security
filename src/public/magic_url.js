@@ -1,6 +1,18 @@
 require('./magic_url.scss');
 
 document.addEventListener('DOMContentLoaded', () => {
+    const magicLogin = document.getElementById('fls_magic_login');
+
+    /*
+     * Every wp-login.php view loads this script, but only the ones carrying the magic
+     * form have anything for it to do. Lost password, reset password and the two-factor
+     * screens do not, and reaching for the form there threw before any of the listeners
+     * below had been attached.
+     */
+    if (!magicLogin) {
+        return;
+    }
+
     const loginForm = document.getElementById('loginform');
 
     const initialWrapper = document.querySelector('.fls_magic_initial');
@@ -9,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const magicBtnShow = document.querySelector('.fls_magic_show_btn');
 
     if(loginForm) {
-        loginForm.appendChild(document.getElementById('fls_magic_login'));
+        loginForm.appendChild(magicLogin);
         loginForm.addEventListener('submit', function(e) {
             if (this.classList.contains('showing_magic_form')) {
                 e.preventDefault();
@@ -24,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.getElementById('fls_magic_login').style.display = 'block';
+    magicLogin.style.display = 'block';
 
     if(magicBtnShow) {
         magicBtnShow.addEventListener('click', function(e) {

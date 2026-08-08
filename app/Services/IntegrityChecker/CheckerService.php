@@ -192,14 +192,21 @@ class CheckerService
         $groupedFiles = [];
 
         foreach ($files as $file => $data) {
-            $folder = dirname($file);
+            /*
+             * Grouped by the place the scanner looked - wp-admin, wp-includes, or the root -
+             * which is the first segment of the path, not its parent directory. Using the
+             * parent put wp-admin/includes/file.php in a group of its own called
+             * "wp-admin/includes", and the screen only ever renders the three it knows, so
+             * every finding in a nested directory was counted and then never shown.
+             */
+            $parts = explode('/', $file, 2);
 
-            $relativePath = $file;
-            if ($folder === '.') {
+            if (count($parts) === 1) {
                 $folder = 'root';
+                $relativePath = $file;
             } else {
-                // Replace the first occurrence of the folder with an empty string
-                $relativePath = preg_replace('/^' . preg_quote($folder, '/') . '\//', '', $file);
+                $folder = $parts[0];
+                $relativePath = $parts[1];
             }
 
             if (!isset($groupedFiles[$folder])) {

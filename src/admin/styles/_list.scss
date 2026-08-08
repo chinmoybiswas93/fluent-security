@@ -1,0 +1,401 @@
+/*
+ * The list screen: a page heading, then one card holding views, search and a table.
+ *
+ * Measured off FluentCart's Orders screen rather than approximated - see
+ * _dashboard.scss for the same note about the page column, which is shared with this.
+ *
+ * Two screens are built from this: the auth log, which owns the page, and the two-factor
+ * enrollment list, which is routed inside the settings shell and so takes the card and
+ * everything in it but not the page heading.
+ */
+
+/* ------------------------------------------------------------------ page */
+
+.fls_list_page {
+    /* The dashboard's gutters, so the two screens line up as you move between them. */
+    padding: 28px 30px;
+}
+
+.fls_list_inner {
+    @apply mx-auto;
+
+    max-width: 1350px;
+}
+
+/* The heading above the card - .fls_page_head - is shared with the scans screen, so it
+   lives in _layout.scss. */
+
+/* ------------------------------------------------------------------ card */
+
+.fls_list_card {
+    @apply bg-surface rounded border border-solid;
+
+    border-color: var(--fls-card-line);
+    box-shadow: var(--fls-shadow-card);
+    overflow: hidden;
+}
+
+/*
+ * Inside the settings pane every other card is outlined rather than lifted, so the list
+ * card takes their frame - a shadowed card among outlined ones reads as floating over the
+ * page rather than sitting on it.
+ */
+.fls_settings_content .fls_list_card {
+    @apply border-hairline;
+
+    box-shadow: none;
+}
+
+/*
+ * No bottom padding: the table below draws its own header band edge to edge, and a gap
+ * between the views and that band would read as a seam across the card.
+ */
+.fls_list_head {
+    padding: 20px 20px 0;
+}
+
+.fls_list_head_top {
+    @apply flex flex-wrap items-start justify-between;
+
+    gap: 10px;
+    min-height: 36px;
+}
+
+.fls_list_head_actions {
+    @apply flex items-center justify-end flex-none;
+
+    gap: 8px;
+}
+
+/* ------------------------------------------------------------------ views */
+
+/*
+ * The status views. FluentCart animates a floating panel behind the active tab, measured
+ * in JavaScript on every change; this colours the tab itself. The two are indistinguishable
+ * once the animation has finished, and this one cannot be left behind by a re-render.
+ */
+.fls_tabs {
+    @apply inline-flex flex-wrap items-center m-0 p-0 list-none;
+
+    gap: 4px;
+
+    li {
+        @apply m-0;
+    }
+
+    button {
+        @apply cursor-pointer bg-transparent font-medium;
+
+        border: 0;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 13px;
+        line-height: 20px;
+        color: var(--fls-text-mid);
+        transition: background-color .15s ease, color .15s ease;
+
+        &:hover {
+            @apply bg-surface-sunk;
+
+            color: var(--fls-text);
+        }
+
+        &:focus {
+            box-shadow: none;
+            outline: none;
+        }
+
+        &:focus-visible {
+            outline: 2px solid var(--fls-accent);
+            outline-offset: -1px;
+        }
+
+        &.is_active {
+            background: var(--fls-surface-raised);
+            color: var(--fls-text);
+        }
+    }
+}
+
+/* A square button for the things that are an icon and nothing else. */
+.fls_icon_btn {
+    @apply flex items-center justify-center flex-none bg-surface cursor-pointer border border-solid border-hairline-strong;
+
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    color: var(--fls-text-mid);
+    transition: background-color .15s ease, color .15s ease, border-color .15s ease;
+
+    svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    &:hover {
+        @apply bg-surface-sunk;
+
+        color: var(--fls-text);
+    }
+
+    &:focus {
+        box-shadow: none;
+        outline: none;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--fls-accent);
+        outline-offset: 1px;
+    }
+
+    &.is_active {
+        background: var(--fls-surface-raised);
+        color: var(--fls-text);
+    }
+}
+
+/* ----------------------------------------------------------------- search */
+
+.fls_list_search {
+    padding-top: 12px;
+
+    .fls_list_search_row {
+        @apply flex items-center;
+
+        gap: 16px;
+    }
+
+    .el-input {
+        @apply flex-1;
+
+        min-width: 0;
+    }
+
+    .fls_list_search_cancel {
+        @apply flex-none cursor-pointer no-underline text-sm;
+
+        color: var(--fls-text);
+
+        &:hover {
+            @apply underline;
+        }
+
+        &:focus {
+            box-shadow: none;
+        }
+    }
+
+    /* What the box will actually match, so nobody has to guess and get nothing back. */
+    .fls_list_search_hint {
+        @apply text-xs text-ink-light m-0;
+
+        margin-top: 8px;
+    }
+}
+
+/* ------------------------------------------------------------------ table */
+
+.fls_list_body {
+    padding-top: 20px;
+}
+
+/*
+ * FluentCart's table skin, scoped to this screen so no other Element Plus table in the
+ * plugin changes. Header band, cell padding and rules are its numbers.
+ */
+.fls_list_table.el-table {
+    /* Element Plus draws a hairline across the top of the wrapper; the band supplies it. */
+    .el-table__inner-wrapper::before {
+        display: none;
+    }
+
+    thead th.el-table__cell {
+        @apply border-0 border-t border-solid border-hairline;
+
+        background-color: var(--fls-surface-sunk);
+        padding: 0;
+
+        .cell {
+            @apply flex flex-row items-center font-medium;
+
+            padding: 8px;
+            font-size: 14px;
+            line-height: 20px;
+            color: var(--fls-text);
+        }
+
+        &.is-right .cell {
+            @apply justify-end;
+        }
+
+        &.is-center .cell {
+            @apply justify-center;
+        }
+    }
+
+    tbody .el-table__cell {
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }
+
+    td .cell {
+        padding-left: 8px;
+        padding-right: 8px;
+        font-size: 14px;
+        font-weight: 400;
+        line-height: 1.35;
+        letter-spacing: .02em;
+        color: var(--fls-text);
+    }
+
+    /* The first and last columns sit against the card's own padding, not the cell's. */
+    tr th:first-child .cell,
+    tr td:first-child .cell {
+        padding-left: 20px;
+    }
+
+    tr th:last-child .cell,
+    tr td:last-child .cell {
+        padding-right: 20px;
+    }
+
+    td.el-table__cell,
+    th.el-table__cell.is-leaf {
+        @apply border-hairline;
+    }
+
+    /* The card ends here, so the last row does not need a rule under it as well. */
+    tbody .el-table__row:last-child td.el-table__cell {
+        border-bottom-width: 0;
+    }
+
+    &.el-table--enable-row-hover .el-table__body tr:hover > td.el-table__cell {
+        background-color: var(--fls-surface-sunk);
+    }
+
+    .sort-caret.ascending.sorted {
+        border-bottom-color: var(--fls-accent);
+    }
+
+    .sort-caret.descending.sorted {
+        border-top-color: var(--fls-accent);
+    }
+
+    /* The expanded panel is a detail view, not another row - so it reads as a panel. */
+    .el-table__expanded-cell {
+        background: var(--fls-surface-sunk);
+
+        &[class*="cell"] {
+            padding: 16px 20px;
+        }
+    }
+}
+
+/* Two lines in one cell: the thing, and the quieter fact about it. */
+.fls_cell_stack {
+    .fls_cell_main {
+        @apply flex items-center;
+
+        gap: 8px;
+        color: var(--fls-text);
+    }
+
+    .fls_cell_sub {
+        @apply text-xs text-ink-light;
+
+        margin-top: 2px;
+        line-height: 1.4;
+    }
+}
+
+/* A fact worth showing but not worth reading - an em dash, a "none", a list of roles. */
+.fls_cell_muted {
+    @apply text-ink-light;
+}
+
+/* A count that is running out: the one red number in a column of ordinary ones. */
+.fls_cell_alert {
+    @apply font-medium text-danger-fg;
+}
+
+/*
+ * An address, as something to copy or look up. wp-admin underlines every link in the
+ * content area, and a column of underlined addresses is a column of blue noise - so the
+ * underline waits for the pointer, the way FluentCart's table links do.
+ */
+.fls_cell_mono {
+    font-family: Menlo, Consolas, monospace;
+    font-size: 13px;
+
+    &,
+    &:visited {
+        color: var(--fls-accent);
+        text-decoration: none;
+    }
+
+    &:hover {
+        @apply underline;
+    }
+
+    &:focus {
+        box-shadow: none;
+    }
+}
+
+/* The expanded detail: a label above each block of text. */
+.fls_log_detail {
+    @apply grid;
+
+    gap: 16px;
+
+    @media (min-width: 900px) {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    h4 {
+        @apply text-xs font-medium text-ink-mid m-0;
+
+        margin-bottom: 6px;
+    }
+
+    .fls_log_detail_value {
+        @apply text-xs bg-surface border border-solid border-hairline rounded-sm;
+
+        padding: 8px 10px;
+        line-height: 1.6;
+        color: var(--fls-text);
+        word-break: break-word;
+    }
+}
+
+/* ----------------------------------------------------------------- footer */
+
+.fls_list_footer {
+    @apply flex flex-wrap items-center justify-between border-0 border-t border-solid border-hairline;
+
+    gap: 12px;
+    padding: 16px 20px;
+
+    /*
+     * The count and what happens to these rows, read as one line - both are quiet facts
+     * about the list above rather than two separate announcements.
+     */
+    .fls_list_footer_text {
+        @apply flex flex-wrap items-center;
+
+        gap: 4px 10px;
+        min-width: 0;
+    }
+
+    .fls_list_count,
+    .fls_list_retention {
+        @apply text-xs text-ink-light;
+    }
+}
+
+@media (max-width: 782px) {
+    .fls_list_page {
+        padding: 20px 12px;
+    }
+}

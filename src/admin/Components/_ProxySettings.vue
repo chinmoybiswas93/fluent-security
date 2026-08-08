@@ -178,17 +178,17 @@ export default {
     font-size: 12px;
     font-weight: normal;
     vertical-align: middle;
-    background: #f0f2f5;
-    color: #606266;
+    background: var(--fls-surface-sunk);
+    color: var(--fls-text-mid);
 
     &.fls_proxy_state_detected {
-        background: #fdf3e3;
-        color: #b07d18;
+        background: var(--fls-warning-bg);
+        color: var(--fls-warning-fg);
     }
 
     &.fls_proxy_state_cloudflare {
-        background: #eaf6e5;
-        color: #4a9c2d;
+        background: var(--fls-success-bg);
+        color: var(--fls-success-fg);
     }
 }
 
@@ -204,12 +204,12 @@ export default {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: .04em;
-        color: #909399;
+        color: var(--fls-text-light);
     }
 
     code {
-        background: #fff;
-        border: 1px solid #e4e7ed;
+        background: var(--fls-surface);
+        border: 1px solid var(--fls-border);
         border-radius: 3px;
         padding: 1px 6px;
     }
@@ -223,7 +223,7 @@ export default {
         font-size: 11px;
         text-transform: uppercase;
         letter-spacing: .04em;
-        color: #909399;
+        color: var(--fls-text-light);
     }
 
     ul {
@@ -231,7 +231,7 @@ export default {
         padding: 0;
         list-style: none;
         font-size: 12px;
-        color: #606266;
+        color: var(--fls-text-mid);
         word-break: break-all;
     }
 }
@@ -244,7 +244,7 @@ export default {
 
     span {
         margin-left: 10px;
-        color: #909399;
+        color: var(--fls-text-light);
         font-size: 12px;
     }
 }
@@ -254,7 +254,7 @@ export default {
 
     span {
         margin-left: 10px;
-        color: #909399;
+        color: var(--fls-text-light);
         font-size: 12px;
     }
 }
