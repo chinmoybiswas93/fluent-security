@@ -47,17 +47,56 @@ body.toplevel_page_fluent-auth {
     }
 }
 
+/* ------------------------------------------------------------------- focus */
+
+/*
+ * wp-admin draws a blue ring on any focused link, which on a nav is left behind after
+ * every click and reads as a second selection. Keyboard users still need it, so it is
+ * moved to :focus-visible and recoloured, rather than removed.
+ */
+#fluent_auth_app {
+    .fls_app_bar a,
+    .fls_settings_nav a {
+        &:focus {
+            box-shadow: none;
+            outline: none;
+        }
+
+        &:focus-visible {
+            outline: 2px solid #253241;
+            outline-offset: -1px;
+        }
+    }
+}
+
 /* ------------------------------------------------------------------ app bar */
+
+/*
+ * The bar is out of flow, so the page below it needs the space kept clear by hand.
+ * Settings does not use it - its pane is pinned too - but every other screen flows here.
+ */
+.fframe_app {
+    padding-top: 56px;
+}
 
 .fls_app_bar {
     @apply flex items-center gap-6 bg-white px-6 border-0 border-b border-solid border-gray-divider;
 
-    min-height: 56px;
-    margin-left: -20px;
-    margin-right: -20px;
-    position: sticky;
+    height: 56px;
+
+    /*
+     * Pinned rather than sticky. The settings pane below is pinned as well, which leaves
+     * this bar's container only as tall as the bar itself - and a sticky element whose
+     * container is its own height has no range to stick over, so it would scroll away
+     * the moment wp-admin's menu made the page scroll. `--fls-shell-left` is the width
+     * of that menu, measured at runtime (see App.vue) rather than hard-coded, so folding
+     * the menu or dropping to a narrow screen moves the bar with it.
+     */
+    position: fixed;
     top: 32px;
-    z-index: 99;
+    left: var(--fls-shell-left, 160px);
+    right: 0;
+    z-index: 2000;
     transition: box-shadow .2s ease;
 
     &.is-scrolled {
@@ -107,30 +146,30 @@ body.toplevel_page_fluent-auth {
 
 /* ------------------------------------------------------- settings shell */
 
+/*
+ * The settings screen is a pinned pane rather than part of the page, so the sidebar and
+ * the header stay where they are and only the settings themselves move. The page is
+ * deliberately still scrollable: wp-admin's own menu is often taller than the viewport,
+ * and locking the body would put the bottom of it out of reach. Taking this pane out of
+ * flow means the page scrolls over exactly that much and no more.
+ */
 .fls_settings {
-    @apply flex items-start relative;
+    @apply flex items-stretch;
 
-    margin-left: -20px;
-    margin-right: -20px;
-    min-height: calc(100vh - 88px);
+    position: fixed;
+    top: 88px;
+    left: var(--fls-shell-left, 160px);
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    z-index: 20;
 }
 
 .fls_settings_nav {
     @apply bg-white flex-shrink-0 flex flex-col border-0 border-r border-solid border-gray-divider;
 
     width: 260px;
-    position: sticky;
-
-    /* Clears the WP admin bar (32px) and the app bar sitting under it (56px). */
-    top: 88px;
-
-    /*
-     * A sticky element only has somewhere to stick if it is shorter than the box it
-     * sits in. `align-self: stretch` made this as tall as the whole settings column, so
-     * it scrolled away with the page instead of staying put. One viewport tall, and the
-     * list scrolls inside itself when it does not fit.
-     */
-    height: calc(100vh - 88px);
+    height: 100%;
 
     .fls_settings_nav_title {
         @apply flex items-center gap-2 flex-shrink-0 text-base font-medium text-system-dark px-5 border-0 border-b border-solid border-gray-divider;
@@ -247,10 +286,14 @@ body.toplevel_page_fluent-auth {
     }
 }
 
+/* The one part of the screen that scrolls. */
 .fls_settings_body {
     @apply flex-1;
 
     min-width: 0;
+    height: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 /* ------------------------------------------------------ settings header */
@@ -259,8 +302,10 @@ body.toplevel_page_fluent-auth {
     @apply flex items-center justify-between gap-4 bg-white px-7 border-0 border-b border-solid border-gray-divider;
 
     min-height: 52px;
+
+    /* Sticky against the pane that scrolls, which starts at its own top edge. */
     position: sticky;
-    top: 88px;
+    top: 0;
     z-index: 9;
 
     h1 {
@@ -284,9 +329,13 @@ body.toplevel_page_fluent-auth {
     @apply p-7;
 }
 
-/* Keeps a scrolled-to section clear of the sticky header above it. */
+/*
+ * Keeps a scrolled-to section clear of the sticky header above it. Measured from the top
+ * of the scrolling pane, so it is the header's own height plus a gap - not the distance
+ * from the top of the window.
+ */
 .fls_section {
-    scroll-margin-top: 120px;
+    scroll-margin-top: 64px;
 }
 
 /* ---------------------------------------------------------- setting card */
@@ -384,20 +433,51 @@ body.toplevel_page_fluent-auth {
     }
 }
 
+/*
+ * Narrow screens get the ordinary page back. A pane pinned to the viewport needs room
+ * either side of it to be worth the trade, and wp-admin moves its own menu off-canvas
+ * down here anyway, so there is nothing left to pin against.
+ */
 @media (max-width: 960px) {
+    .fframe_app {
+        padding-top: 0;
+    }
+
+    .fls_app_bar {
+        position: sticky;
+        left: auto;
+        right: auto;
+    }
+
     .fls_settings {
         @apply block;
+
+        position: static;
+        overflow: visible;
     }
 
     .fls_settings_nav {
         width: 100%;
-        position: static;
         height: auto;
         @apply border-r-0 border-b;
 
         > ul {
             overflow-y: visible;
         }
+    }
+
+    .fls_settings_body {
+        height: auto;
+        overflow: visible;
+    }
+
+    /* Back to sticking against the page, below the admin bar and the app bar. */
+    .fls_settings_header {
+        top: 88px;
+    }
+
+    .fls_section {
+        scroll-margin-top: 152px;
     }
 
     .fls_row .fls_row_label {

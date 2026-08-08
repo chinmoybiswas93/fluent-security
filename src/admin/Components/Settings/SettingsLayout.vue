@@ -76,13 +76,18 @@ export default {
             }
 
             /*
-             * At the end of the page you are looking at the end of the page. The last
+             * At the end of the pane you are looking at the end of the pane. The last
              * section can sit too low to ever cross the line - there is no scroll left
              * to bring it up there - so reaching the bottom is what selects it.
+             *
+             * Only when there is a bottom to reach: a pane with nothing to scroll is
+             * trivially "at the bottom", which on first paint - before the settings have
+             * loaded and given it any height - would light up the last section.
              */
-            const doc = document.documentElement;
+            const pane = this.$refs.pane;
+            const scrollable = pane && pane.scrollHeight > pane.clientHeight;
 
-            if (window.innerHeight + window.scrollY >= doc.scrollHeight - 2) {
+            if (scrollable && pane.scrollTop + pane.clientHeight >= pane.scrollHeight - 2) {
                 this.activeSection = group.sections[group.sections.length - 1].id;
                 return;
             }
@@ -102,10 +107,21 @@ export default {
         }
     },
     mounted() {
+        /*
+         * The pane scrolls, not the window - a scroll container's events do not reach
+         * the window, so listening there would leave the highlight frozen. The window
+         * listener stays for the narrow layout, where the pane is not a scroller and the
+         * page moves instead.
+         */
+        this.$refs.pane.addEventListener('scroll', this.spy, {passive: true});
         window.addEventListener('scroll', this.spy, {passive: true});
         this.$nextTick(this.spy);
     },
     beforeUnmount() {
+        if (this.$refs.pane) {
+            this.$refs.pane.removeEventListener('scroll', this.spy);
+        }
+
         window.removeEventListener('scroll', this.spy);
     },
     watch: {
@@ -115,6 +131,12 @@ export default {
          */
         $route() {
             this.activeSection = '';
+
+            // The pane keeps its scroll position between screens; a new one starts at its top.
+            if (this.$refs.pane) {
+                this.$refs.pane.scrollTop = 0;
+            }
+
             this.$nextTick(() => setTimeout(this.spy, 50));
         }
     }
@@ -158,7 +180,7 @@ export default {
             </ul>
         </div>
 
-        <div class="fls_settings_body">
+        <div ref="pane" class="fls_settings_body">
             <router-view/>
         </div>
     </div>

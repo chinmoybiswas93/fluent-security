@@ -26,6 +26,21 @@ export default {
         },
         onScroll() {
             this.scrolled = window.scrollY > 10;
+        },
+        /**
+         * Publishes the width of wp-admin's menu as a CSS variable.
+         *
+         * The app bar and the settings pane are pinned to the viewport, which means they
+         * cannot inherit the page's left offset the way an in-flow element does - they
+         * have to be told where the menu ends. Measuring it beats hard-coding 160px:
+         * collapsing the menu, the automatic fold on a narrow window and the off-canvas
+         * menu on a phone all land on different widths, and all of them show up here.
+         */
+        measureShell() {
+            const content = document.getElementById('wpcontent');
+            const left = content ? content.getBoundingClientRect().left : 0;
+
+            document.documentElement.style.setProperty('--fls-shell-left', left + 'px');
         }
     },
     watch: {
@@ -40,9 +55,30 @@ export default {
     mounted() {
         window.addEventListener('scroll', this.onScroll);
         this.onScroll();
+
+        this.measureShell();
+
+        /*
+         * Folding the menu changes the width of #wpcontent, so watching its size catches
+         * the fold, the automatic fold at narrow widths and an ordinary window resize
+         * without listening for any of them by name.
+         */
+        const content = document.getElementById('wpcontent');
+
+        if (content && window.ResizeObserver) {
+            this.shellObserver = new ResizeObserver(this.measureShell);
+            this.shellObserver.observe(content);
+        } else {
+            window.addEventListener('resize', this.measureShell);
+        }
     },
     beforeUnmount() {
         window.removeEventListener('scroll', this.onScroll);
+        window.removeEventListener('resize', this.measureShell);
+
+        if (this.shellObserver) {
+            this.shellObserver.disconnect();
+        }
     }
 }
 </script>
