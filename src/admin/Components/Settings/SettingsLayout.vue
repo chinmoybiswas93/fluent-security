@@ -2,10 +2,15 @@
 import {settingsNav, chevronIcon} from './nav';
 
 /**
- * How far below the viewport top a section counts as "the one you are looking at".
- * Roughly the sticky header, so the section under it is the one highlighted.
+ * Clearance below the sticky header before a section counts as "the one you are looking
+ * at". A clicked section lands a little below the header - scroll-margin-top plus the
+ * scroll-padding wp-admin adds for its admin bar - so the line has to sit below where
+ * the click leaves it, or clicking an entry highlights the one above it.
  */
-const SPY_OFFSET = 140;
+const SPY_TOLERANCE = 24;
+
+/** Fallback for the header's bottom edge, used only before it has rendered. */
+const HEADER_BOTTOM = 140;
 
 export default {
     name: 'SettingsLayout',
@@ -47,6 +52,16 @@ export default {
             this.activeSection = id;
         },
         /**
+         * The viewport line a section has to cross to count as the current one. Measured
+         * from the header rather than hard-coded, so it stays right if the header grows.
+         */
+        spyLine() {
+            const header = document.querySelector('.fls_settings_header');
+            const bottom = header ? header.getBoundingClientRect().bottom : HEADER_BOTTOM;
+
+            return bottom + SPY_TOLERANCE;
+        },
+        /**
          * Highlights the section currently under the header.
          *
          * Walks from the bottom up and takes the first one that has passed the line, so
@@ -60,10 +75,24 @@ export default {
                 return;
             }
 
+            /*
+             * At the end of the page you are looking at the end of the page. The last
+             * section can sit too low to ever cross the line - there is no scroll left
+             * to bring it up there - so reaching the bottom is what selects it.
+             */
+            const doc = document.documentElement;
+
+            if (window.innerHeight + window.scrollY >= doc.scrollHeight - 2) {
+                this.activeSection = group.sections[group.sections.length - 1].id;
+                return;
+            }
+
+            const line = this.spyLine();
+
             for (let i = group.sections.length - 1; i >= 0; i--) {
                 const el = document.getElementById('fls_section_' + group.sections[i].id);
 
-                if (el && el.getBoundingClientRect().top <= SPY_OFFSET) {
+                if (el && el.getBoundingClientRect().top <= line) {
                     this.activeSection = group.sections[i].id;
                     return;
                 }

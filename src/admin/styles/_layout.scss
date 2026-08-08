@@ -7,6 +7,46 @@
  * which survives the plugin being rendered inside whatever wp-admin gives it.
  */
 
+/* --------------------------------------------------------------- wp-admin fit */
+
+/*
+ * wp-admin reserves a 65px strip under the content for its footer. That strip is where
+ * a pinned sidebar comes unstuck: the column it sits in ends 65px before the document
+ * does, so at the very bottom of a long page the sidebar slides up by exactly that
+ * much. FluentCart never sees this because it covers the footer with a full-screen
+ * pane; reclaiming the strip gets the same result without taking over the screen.
+ *
+ * Deliberately unscoped - it has to reach wp-admin's own elements - but narrowed to
+ * this plugin's screen by the body class WordPress puts there.
+ */
+body.toplevel_page_fluent-auth {
+    #wpbody-content {
+        padding-bottom: 0;
+    }
+
+    #wpfooter {
+        display: none;
+    }
+}
+
+/* ---------------------------------------------------------------- box model */
+
+/*
+ * Tailwind's preflight normally sets this, but preflight is off here because it would
+ * restyle the whole of wp-admin. Without it these elements inherit wp-admin's
+ * content-box, which makes every `min-h-*` and `h-*` utility add its padding on top of
+ * the height instead of inside it - a 36px nav link with 8px padding rendered at 52px.
+ * Scoped to the app root, so nothing outside it changes.
+ */
+#fluent_auth_app {
+    &,
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+}
+
 /* ------------------------------------------------------------------ app bar */
 
 .fls_app_bar {
@@ -72,27 +112,51 @@
 
     margin-left: -20px;
     margin-right: -20px;
-    min-height: calc(100vh - 120px);
+    min-height: calc(100vh - 88px);
 }
 
 .fls_settings_nav {
-    @apply bg-white flex-shrink-0 border-0 border-r border-solid border-gray-divider;
+    @apply bg-white flex-shrink-0 flex flex-col border-0 border-r border-solid border-gray-divider;
 
     width: 260px;
     position: sticky;
+
+    /* Clears the WP admin bar (32px) and the app bar sitting under it (56px). */
     top: 88px;
-    align-self: stretch;
-    min-height: calc(100vh - 120px);
+
+    /*
+     * A sticky element only has somewhere to stick if it is shorter than the box it
+     * sits in. `align-self: stretch` made this as tall as the whole settings column, so
+     * it scrolled away with the page instead of staying put. One viewport tall, and the
+     * list scrolls inside itself when it does not fit.
+     */
+    height: calc(100vh - 88px);
 
     .fls_settings_nav_title {
-        @apply flex items-center gap-2 text-base font-medium text-system-dark px-5 border-0 border-b border-solid border-gray-divider;
+        @apply flex items-center gap-2 flex-shrink-0 text-base font-medium text-system-dark px-5 border-0 border-b border-solid border-gray-divider;
 
         min-height: 52px;
         margin: 0;
     }
 
-    ul {
-        @apply list-none m-0 p-4;
+    > ul {
+        @apply list-none m-0 p-4 flex-1;
+
+        overflow-y: auto;
+        overscroll-behavior: contain;
+
+        /* Out of the way until the pointer is over the list, so it reads as one panel. */
+        &::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        &::-webkit-scrollbar-thumb {
+            @apply bg-transparent rounded;
+        }
+
+        &:hover::-webkit-scrollbar-thumb {
+            @apply bg-gray-200;
+        }
     }
 
     li {
@@ -328,8 +392,12 @@
     .fls_settings_nav {
         width: 100%;
         position: static;
-        min-height: 0;
+        height: auto;
         @apply border-r-0 border-b;
+
+        > ul {
+            overflow-y: visible;
+        }
     }
 
     .fls_row .fls_row_label {

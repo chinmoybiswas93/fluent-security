@@ -2,16 +2,26 @@ $slug: 'fframe_';
 $primary-color: rgb(47, 41, 37);
 $bodyBg: #f1f2f5;
 
-// FluentCart's primary, so a button here and a button there are the same button.
-@forward "~element-plus/theme-chalk/src/common/var.scss" with (
-  $colors: (
-    "primary": (
-      "base": #253241,
-    )
-  ),
-);
-
 @use "styles/layout";
+
+/*
+ * FluentCart's primary, so a button here and a button there are the same button.
+ *
+ * This has to be a CSS variable rather than a Sass configuration of Element Plus's
+ * var.scss: the components are auto-imported by ElementPlusResolver, which pulls in the
+ * pre-built CSS and injects it into <head> at runtime - after this stylesheet. A `:root`
+ * rule would lose on order no matter what it contained, which is why the earlier Sass
+ * override silently did nothing. Beating it needs a more specific selector, and the body
+ * class WordPress puts on this plugin's screen supplies one without leaking the colour
+ * into any other plugin's pages. Element Plus's teleported popups - notifications,
+ * message boxes, select dropdowns - attach to <body>, so they inherit it too.
+ *
+ * Only the base is set, matching FluentCart exactly; it leaves the derived
+ * --el-color-primary-light-* ramp at Element Plus's defaults.
+ */
+body.toplevel_page_fluent-auth {
+  --el-color-primary: #253241;
+}
 
 @tailwind components;
 @tailwind utilities;
