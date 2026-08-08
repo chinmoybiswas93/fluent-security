@@ -11,21 +11,21 @@ export default {
 <template>
     <div>
         <SettingRow :label="$t('XML-RPC')"
-                    :description="$t('An old remote publishing interface. Most sites never use it, and it is a standing target for password guessing because one request can carry many attempts.')">
+                    :description="$t('An old remote publishing interface. Most sites never use it, and it is a standing target for password guessing because one request can carry many attempts.')"
+                    :hint="$t('Recommended: disabled.')">
             <el-switch v-model="settings.disable_xmlrpc" active-value="yes" inactive-value="no"/>
-            <p>{{ $t('Recommended: disabled.') }}</p>
         </SettingRow>
 
         <SettingRow :label="$t('Application passwords')"
-                    :description="$t('Lets external apps sign in over the REST API with their own password. Leave enabled only if something actually connects that way.')">
+                    :description="$t('Lets external apps sign in over the REST API with their own password. Leave enabled only if something actually connects that way.')"
+                    :hint="$t('Switched on here means application passwords are turned off.')">
             <el-switch v-model="settings.disable_app_login" active-value="yes" inactive-value="no"/>
-            <p>{{ $t('Switched on here means application passwords are turned off.') }}</p>
         </SettingRow>
 
         <SettingRow :label="$t('Public user listing')"
-                    :description="$t('WordPress will list your usernames over the REST API to anyone who asks. Those names are half of every password guess.')">
+                    :description="$t('WordPress will list your usernames over the REST API to anyone who asks. Those names are half of every password guess.')"
+                    :hint="$t('Recommended: disabled.')">
             <el-switch v-model="settings.disable_users_rest" active-value="yes" inactive-value="no"/>
-            <p>{{ $t('Recommended: disabled.') }}</p>
         </SettingRow>
 
         <SettingRow :label="$t('Secure signup form')"

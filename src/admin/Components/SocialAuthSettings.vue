@@ -23,6 +23,11 @@ export default {
     },
     methods: {
         saveSettings() {
+            // Nothing loaded means nothing to save - posting now would overwrite with blanks.
+            if (!this.settings) {
+                return;
+            }
+
             this.errors = false;
             this.saving = true;
 
@@ -75,7 +80,7 @@ export default {
     <div>
         <SettingsHeader :heading="$t('Social Login')"
                         :description="$t('Let people sign in with an account they already have.')"
-                        :saving="saving" @save="saveSettings()"/>
+                        :saving="saving" :disabled="!settings" @save="saveSettings()"/>
 
         <div class="fls_settings_content">
             <el-skeleton v-if="!settings || !auth_info" :animated="true" :rows="6"/>

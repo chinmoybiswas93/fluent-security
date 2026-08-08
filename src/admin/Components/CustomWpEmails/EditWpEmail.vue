@@ -65,6 +65,10 @@ export default {
                 });
         },
         saveEmail() {
+            if (!this.settings) {
+                return;
+            }
+
             this.required_smartcodes = [];
             this.saving = true;
 
@@ -110,7 +114,7 @@ export default {
     <div>
         <SettingsHeader :heading="email ? email.title : $t('Edit Email')"
                         :description="email ? email.description : ''"
-                        :saving="saving" @save="saveEmail()">
+                        :saving="saving" :disabled="!settings" @save="saveEmail()">
             <template #actions>
                 <el-button size="small" @click="$router.push({name: 'settings_emails'})">
                     {{ $t('Back to emails') }}

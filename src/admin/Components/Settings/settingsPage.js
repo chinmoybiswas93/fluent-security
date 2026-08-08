@@ -40,6 +40,11 @@ export default {
                 });
         },
         saveSettings() {
+            // Nothing loaded means nothing to save - posting now would overwrite with blanks.
+            if (!this.settings) {
+                return;
+            }
+
             this.errors = false;
             this.saving = true;
 

@@ -426,22 +426,32 @@ body.toplevel_page_fluent-auth {
 /* ----------------------------------------------------------- setting row */
 
 /*
- * Label and explanation on the left, the control on the right - the shape that lets
- * someone scan a column of labels without reading every description.
+ * Label and explanation on the left, the control pinned to the right.
+ *
+ * The two columns used to be the other way round: the text was pinned at 300px and the
+ * control took everything left over. A switch is 44px wide, so most of a row was empty
+ * while the sentence explaining it wrapped over four lines - the widest thing on the
+ * page was given to the narrowest thing on it. Now the text takes the width and the
+ * control is only as wide as it needs to be, which halves the height of a typical row.
  */
 .fls_row {
-    @apply flex flex-wrap gap-6 border-0 border-b border-solid border-gray-divider;
+    @apply flex items-start gap-6 border-0 border-b border-solid border-gray-divider;
 
-    padding-top: 20px;
-    padding-bottom: 20px;
+    padding-top: 14px;
+    padding-bottom: 14px;
 
     &:last-child {
         @apply border-b-0;
     }
 
     .fls_row_label {
-        flex: 0 0 300px;
-        max-width: 300px;
+        flex: 1 1 auto;
+
+        /* Stops a description running to a line too long to read comfortably. */
+        max-width: 720px;
+
+        /* Lets it wrap rather than force the row wider than the card. */
+        min-width: 0;
 
         label,
         .fls_row_title {
@@ -451,33 +461,58 @@ body.toplevel_page_fluent-auth {
         p {
             @apply text-xs text-system-light m-0;
 
-            margin-top: 4px;
+            margin-top: 3px;
             line-height: 1.5;
         }
     }
 
-    .fls_row_control {
-        @apply flex-1;
+    .fls_row_hint {
+        @apply text-xs text-system-light;
 
-        min-width: 260px;
+        margin-top: 5px !important;
+        font-style: italic;
+    }
+
+    .fls_row_control {
+        flex: 0 0 auto;
+
+        /* Holds every control against the same right edge, so they read as one column. */
+        margin-left: auto;
+
+        .el-input,
+        .el-select,
+        .el-textarea {
+            width: 300px;
+        }
+
+        .el-form-item {
+            margin-bottom: 0;
+        }
 
         > p {
             @apply text-xs text-system-light;
 
             margin: 6px 0 0;
         }
-
-        .el-form-item {
-            margin-bottom: 0;
-        }
     }
 
+    /* For controls that need the whole width: a table, an editor, a group of cards. */
     &.fls_row_stacked {
         @apply block;
 
         .fls_row_label {
             max-width: none;
             margin-bottom: 8px;
+        }
+
+        .fls_row_control {
+            margin-left: 0;
+
+            .el-input,
+            .el-select,
+            .el-textarea {
+                width: 100%;
+            }
         }
     }
 }
@@ -529,9 +564,28 @@ body.toplevel_page_fluent-auth {
         scroll-margin-top: 152px;
     }
 
-    .fls_row .fls_row_label {
-        flex: 0 0 100%;
-        max-width: 100%;
+    /*
+     * The row is a single flex line now rather than a wrapping one, so narrow screens
+     * need it stacked outright - left as it was, the control had nowhere to wrap to and
+     * pushed itself off the right edge of the page.
+     */
+    .fls_row {
+        display: block;
+
+        .fls_row_label {
+            max-width: none;
+            margin-bottom: 8px;
+        }
+
+        .fls_row_control {
+            margin-left: 0;
+
+            .el-input,
+            .el-select,
+            .el-textarea {
+                width: 100%;
+            }
+        }
     }
 }
 

@@ -16,13 +16,9 @@ export default {
         </SettingRow>
 
         <SettingRow :label="$t('Window length')"
-                    :description="$t('How far back the count reaches, in minutes.')">
+                    :description="$t('How far back the count reaches, in minutes.')"
+                    :hint="$t('%1s failed attempts within %2s minutes will block that address.', settings.login_try_limit, settings.login_try_timing)">
             <el-input type="number" :min="1" v-model="settings.login_try_timing" style="max-width: 160px;"/>
-            <p>
-                {{
-                    $t('%1s failed attempts within %2s minutes will block that address.', settings.login_try_limit, settings.login_try_timing)
-                }}
-            </p>
         </SettingRow>
 
         <SettingRow :label="$t('Activity log')"

@@ -4,7 +4,11 @@
  *
  * The shape matters more than it looks. A column of labels can be scanned without
  * reading a word of the explanations, which is how someone finds the one thing they
- * came to change.
+ * came to change - so the text gets the width and the control gets only what it needs.
+ *
+ * `hint` is for the secondary line that used to sit under the control: "Recommended:
+ * disabled", or a sentence restating the setting in terms of the values chosen. It
+ * belongs with the text, because under a 44px switch it had nowhere to wrap.
  */
 export default {
     name: 'SettingRow',
@@ -14,6 +18,10 @@ export default {
             default: ''
         },
         description: {
+            type: String,
+            default: ''
+        },
+        hint: {
             type: String,
             default: ''
         },
@@ -33,6 +41,10 @@ export default {
                 <span class="fls_row_title">{{ label }}</span>
             </slot>
             <p v-if="description">{{ description }}</p>
+
+            <p v-if="hint || $slots.hint" class="fls_row_hint">
+                <slot name="hint">{{ hint }}</slot>
+            </p>
         </div>
         <div class="fls_row_control">
             <slot/>

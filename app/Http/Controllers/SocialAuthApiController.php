@@ -50,6 +50,17 @@ class SocialAuthApiController
 
     private static function validateSettings($settings)
     {
+        /*
+         * Turning social login off clears the stored credentials, which is right when it
+         * is what was asked for and destructive when it is not. A payload that is not a
+         * settings array cannot have asked for it - it is a request that went wrong, and
+         * the one below would read a missing 'enabled' as "no" and wipe the client IDs
+         * and secrets on the strength of it. Refuse instead.
+         */
+        if (!is_array($settings) || !isset($settings['enabled'])) {
+            return new \WP_Error('invalid_settings', __('Social login settings are missing from this request', 'fluent-security'), ['status' => 400]);
+        }
+
         $oldSettings = Helper::getSocialAuthSettings('view');
         $settings = Arr::only($settings, array_keys($oldSettings));
 

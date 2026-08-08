@@ -21,6 +21,15 @@ export default {
         saveText: {
             type: String,
             default: ''
+        },
+        /*
+         * Saving before the data has arrived posts an empty payload over whatever is
+         * stored. On the social login endpoint that clears the client IDs and secrets,
+         * so this is a guard rather than a nicety.
+         */
+        disabled: {
+            type: Boolean,
+            default: false
         }
     },
     emits: ['save']
@@ -37,7 +46,8 @@ export default {
         <div class="fls_settings_header_actions">
             <slot name="actions"/>
 
-            <el-button v-if="showSave" type="primary" size="small" :loading="saving" @click="$emit('save')">
+            <el-button v-if="showSave" type="primary" size="small" :loading="saving"
+                       :disabled="disabled" @click="$emit('save')">
                 {{ saveText || $t('Save') }}
             </el-button>
         </div>

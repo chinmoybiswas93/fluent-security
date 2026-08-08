@@ -1,6 +1,9 @@
 <script type="text/babel">
+import SettingRow from './Settings/_SettingRow.vue';
+
 export default {
     name: 'ProxySettings',
+    components: {SettingRow},
     props: {
         settings: {
             type: Object,
@@ -152,25 +155,16 @@ export default {
                 <span>{{ $t('Fills these in from the request you are making now. Nothing is trusted until you save.') }}</span>
             </p>
 
-            <el-row :gutter="30">
-                <el-col :md="12" :sm="24">
-                    <el-form-item :label="$t('Trusted proxy IP addresses or ranges')">
-                        <el-input type="textarea" :rows="3" v-model="settings.trusted_proxies"
-                                  placeholder="127.0.0.1, 10.0.0.0/8"/>
-                        <p>
-                            {{ $t('One per line or comma separated. CIDR ranges and IPv6 are supported. Leave empty to always use the direct connection address, which cannot be spoofed.') }}
-                        </p>
-                    </el-form-item>
-                </el-col>
-                <el-col :md="12" :sm="24">
-                    <el-form-item :label="$t('Header the proxy sends the visitor IP in')">
-                        <el-input v-model="settings.proxy_ip_header" placeholder="X-Forwarded-For"/>
-                        <p>
-                            {{ $t('Defaults to X-Forwarded-For. This header is only read for requests arriving from one of the trusted proxies above.') }}
-                        </p>
-                    </el-form-item>
-                </el-col>
-            </el-row>
+            <SettingRow :label="$t('Trusted proxies')"
+                        :description="$t('One per line or comma separated. CIDR ranges and IPv6 are supported. Leave empty to always use the direct connection address, which cannot be spoofed.')">
+                <el-input type="textarea" :rows="3" v-model="settings.trusted_proxies"
+                          placeholder="127.0.0.1, 10.0.0.0/8"/>
+            </SettingRow>
+
+            <SettingRow :label="$t('Header carrying the visitor IP')"
+                        :description="$t('Defaults to X-Forwarded-For. This header is only read for requests arriving from one of the trusted proxies above.')">
+                <el-input v-model="settings.proxy_ip_header" placeholder="X-Forwarded-For"/>
+            </SettingRow>
         </template>
     </div>
 </template>

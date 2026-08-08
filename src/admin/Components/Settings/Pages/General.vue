@@ -80,7 +80,7 @@ export default {
     <div>
         <SettingsHeader :heading="$t('Settings')"
                         :description="$t('Everything saved together, in one place.')"
-                        :saving="saving" @save="saveSettings()">
+                        :saving="saving" :disabled="!settings" @save="saveSettings()">
             <template #actions>
                 <el-button size="small" @click="applyRecommended()">
                     {{ $t('Apply recommended') }}

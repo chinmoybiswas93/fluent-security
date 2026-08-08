@@ -96,6 +96,11 @@ export default {
                 });
         },
         saveSettings() {
+            // Nothing loaded means nothing to save - posting now would overwrite with blanks.
+            if (!this.settings) {
+                return;
+            }
+
             this.saving = true;
 
             this.$post('wp-default-emails/save-template-settings', {settings: this.settings})
@@ -157,7 +162,7 @@ export default {
     <div>
         <SettingsHeader :heading="$t('Email Template Design')"
                         :description="$t('How every system email looks, and who it comes from.')"
-                        :saving="saving" @save="saveSettings()">
+                        :saving="saving" :disabled="!settings" @save="saveSettings()">
             <template #actions>
                 <el-button size="small" @click="$router.push({name: 'settings_emails'})">
                     {{ $t('Back to emails') }}
