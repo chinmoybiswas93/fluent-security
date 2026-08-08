@@ -17,29 +17,47 @@ export default {
             defaultColors: {},
             /*
              * Grouped the way they read in the preview - the page, then the message on
-             * it, then the button in the message - so the list is walked in the same
-             * order as the thing beside it.
+             * it, then the quoted blocks inside that - so the list is walked in the same
+             * order as the thing beside it. `target` is the element in the sample each
+             * one actually colours, used to scroll the preview to it.
              */
             groups: [
                 {
                     title: 'Page',
+                    target: '.body_wrap',
                     colors: [
                         {key: 'body_bg', label: 'Background', hint: 'Behind the message.'},
-                        {key: 'footer_content_color', label: 'Footer text', hint: 'The small print below the message.'}
+                        {
+                            key: 'footer_content_color',
+                            label: 'Footer text',
+                            hint: 'The small print below the message.',
+                            // Its own target: the footer is at the far end of the email.
+                            target: '.footer_table'
+                        }
                     ]
                 },
                 {
                     title: 'Message',
+                    target: '.content_wrap',
                     colors: [
                         {key: 'content_bg', label: 'Background', hint: 'The card the message sits on.'},
                         {key: 'content_color', label: 'Text', hint: 'Body copy.'}
                     ]
                 },
                 {
-                    title: 'Button',
+                    /*
+                     * These two style `blockquote`, which the emails use for indented
+                     * detail blocks - login details, an account address, a long URL.
+                     * They are not the button: every button is an <a> with its colours
+                     * written inline in that email's own body, so it is changed per
+                     * email under Content, not here.
+                     */
+                    title: 'Quoted blocks',
+                    target: 'blockquote',
+                    note: 'The indented boxes holding details like a username or a link.',
                     colors: [
-                        {key: 'highlight_bg', label: 'Background', hint: 'Behind a call to action.'},
-                        {key: 'highlight_color', label: 'Text', hint: 'On top of it.'}
+                        {key: 'highlight_bg', label: 'Background', hint: 'Behind the quoted block.'},
+                        {key: 'highlight_color', label: 'Text', hint: 'Inside it.'}
                     ]
                 }
             ]
@@ -94,6 +112,14 @@ export default {
         setDefaultColors() {
             for (let key in this.defaultColors) {
                 this.settings[key] = this.defaultColors[key];
+            }
+        },
+        /** Scrolls the preview to whatever the setting being edited actually colours. */
+        reveal(group, color) {
+            const target = (color && color.target) || group.target;
+
+            if (this.$refs.preview && target) {
+                this.$refs.preview.reveal(target);
             }
         },
         /**
@@ -155,8 +181,10 @@ export default {
                         <div class="fls_design_controls">
                             <div v-for="group in groups" :key="group.title" class="fls_swatch_group">
                                 <h3>{{ $t(group.title) }}</h3>
+                                <p v-if="group.note" class="fls_swatch_group_note">{{ $t(group.note) }}</p>
 
-                                <div v-for="color in group.colors" :key="color.key" class="fls_swatch">
+                                <div v-for="color in group.colors" :key="color.key" class="fls_swatch"
+                                     @click="reveal(group, color)">
                                     <el-color-picker v-model="settings[color.key]" :show-alpha="false"
                                                      color-format="hex"
                                                      @active-change="(picked) => { settings[color.key] = picked; }"/>
@@ -172,8 +200,8 @@ export default {
                         <!-- Stays in view while the colours beside it are changed. -->
                         <div class="fls_design_preview">
                             <span class="fls_design_preview_label">{{ $t('Preview') }}</span>
-                            <emailbody-container v-if="defaultContent" :style_config="settings"
-                                                 :content="defaultContent"/>
+                            <emailbody-container v-if="defaultContent" ref="preview"
+                                                 :style_config="settings" :content="defaultContent"/>
                         </div>
                     </div>
                 </SettingsCard>
@@ -263,6 +291,13 @@ export default {
         color: #909399;
         font-weight: 600;
         margin: 0 0 6px;
+    }
+
+    .fls_swatch_group_note {
+        font-size: 11px;
+        color: #909399;
+        line-height: 1.4;
+        margin: -2px 0 6px;
     }
 }
 

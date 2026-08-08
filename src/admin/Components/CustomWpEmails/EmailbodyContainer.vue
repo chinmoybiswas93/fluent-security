@@ -68,6 +68,26 @@ export default {
         },
         schedulePaint() {
             this.$nextTick(this.paint);
+        },
+        /**
+         * Brings the part of the email a setting affects into view.
+         *
+         * The sample is longer than the frame, and the quoted block sits near the end of
+         * it - so changing that colour used to show nothing at all until you thought to
+         * scroll the preview.
+         */
+        reveal(selector) {
+            const doc = this.doc();
+
+            if (!doc || !selector) {
+                return;
+            }
+
+            const target = doc.querySelector(selector);
+
+            if (target) {
+                target.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }
         }
     },
     watch: {
