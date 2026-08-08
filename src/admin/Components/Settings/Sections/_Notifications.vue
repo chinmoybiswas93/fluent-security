@@ -1,9 +1,10 @@
 <script type="text/babel">
 import SettingRow from '../_SettingRow.vue';
+import SettingToggle from '../_SettingToggle.vue';
 
 export default {
     name: 'NotificationsSection',
-    components: {SettingRow},
+    components: {SettingRow, SettingToggle},
     props: {
         settings: {type: Object, required: true},
         user_roles: {type: Array, default: () => []}
@@ -44,10 +45,9 @@ export default {
             </el-select>
         </SettingRow>
 
-        <SettingRow :label="$t('Tell me when someone is blocked')"
-                    :description="$t('Sent when an address hits the failed attempt limit.')">
-            <el-switch v-model="settings.notify_on_blocked" active-value="yes" inactive-value="no"/>
-        </SettingRow>
+        <SettingToggle v-model="settings.notify_on_blocked"
+                       :label="$t('Tell me when someone is blocked')"
+                       :description="$t('Sent when an address hits the failed attempt limit.')"/>
 
         <SettingRow :label="$t('Summary report')"
                     :description="$t('A digest of login activity on a schedule.')">

@@ -1,9 +1,10 @@
 <script type="text/babel">
 import SettingRow from '../_SettingRow.vue';
+import SettingToggle from '../_SettingToggle.vue';
 
 export default {
     name: 'MagicLoginSection',
-    components: {SettingRow},
+    components: {SettingRow, SettingToggle},
     props: {
         settings: {type: Object, required: true},
         user_roles: {type: Array, default: () => []}
@@ -13,10 +14,9 @@ export default {
 
 <template>
     <div>
-        <SettingRow :label="$t('Enable magic login')"
-                    :description="$t('Redeeming the link proves the mailbox, so an emailed second-factor code is not asked for afterwards. An authenticator app still is.')">
-            <el-switch v-model="settings.magic_login" active-value="yes" inactive-value="no"/>
-        </SettingRow>
+        <SettingToggle v-model="settings.magic_login"
+                       :label="$t('Enable magic login')"
+                       :description="$t('Redeeming the link proves the mailbox, so an emailed second-factor code is not asked for afterwards. An authenticator app still is.')"/>
 
         <template v-if="settings.magic_login === 'yes'">
             <SettingRow :label="$t('Roles it is not offered to')"
@@ -28,10 +28,9 @@ export default {
                 </el-select>
             </SettingRow>
 
-            <SettingRow :label="$t('Make it the primary method')"
-                        :description="$t('Shows the magic link form first on the login page, with the password form behind a link.')">
-                <el-switch v-model="settings.magic_link_primary" active-value="yes" inactive-value="no"/>
-            </SettingRow>
+            <SettingToggle v-model="settings.magic_link_primary"
+                           :label="$t('Make it the primary method')"
+                           :description="$t('Shows the magic link form first on the login page, with the password form behind a link.')"/>
         </template>
     </div>
 </template>

@@ -1,6 +1,7 @@
 <script type="text/babel">
 import SettingsCard from '../Settings/_SettingsCard.vue';
 import SettingRow from '../Settings/_SettingRow.vue';
+import SettingToggle from '../Settings/_SettingToggle.vue';
 
 /**
  * One social provider's settings.
@@ -15,7 +16,7 @@ import SettingRow from '../Settings/_SettingRow.vue';
  */
 export default {
     name: 'SocialProvider',
-    components: {SettingsCard, SettingRow},
+    components: {SettingsCard, SettingRow, SettingToggle},
     props: {
         settings: {type: Object, required: true},
         provider: {type: String, required: true},

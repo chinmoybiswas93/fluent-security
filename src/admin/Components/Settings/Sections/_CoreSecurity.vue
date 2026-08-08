@@ -1,36 +1,43 @@
 <script type="text/babel">
-import SettingRow from '../_SettingRow.vue';
+import SettingToggle from '../_SettingToggle.vue';
 
+/**
+ * Every setting here is stored as `disable_*` - the switch turns a restriction on, not a
+ * feature. So each one is named after what switching it on does.
+ *
+ * They used to be named after the feature instead: a switch labelled "XML-RPC", on,
+ * meant XML-RPC was off. The note under it read "switched on here means application
+ * passwords are turned off", which is the label admitting it was backwards.
+ */
 export default {
     name: 'CoreSecuritySection',
-    components: {SettingRow},
+    components: {SettingToggle},
     props: {settings: {type: Object, required: true}}
 };
 </script>
 
 <template>
     <div>
-        <SettingRow :label="$t('XML-RPC')"
-                    :description="$t('An old remote publishing interface. Most sites never use it, and it is a standing target for password guessing because one request can carry many attempts.')"
-                    :hint="$t('Recommended: disabled.')">
-            <el-switch v-model="settings.disable_xmlrpc" active-value="yes" inactive-value="no"/>
-        </SettingRow>
+        <SettingToggle v-model="settings.disable_xmlrpc" recommend="yes"
+                       :label="$t('Block XML-RPC requests')"
+                       :description="$t('An old remote publishing interface almost no site still uses. One request can carry many password guesses.')"/>
 
-        <SettingRow :label="$t('Application passwords')"
-                    :description="$t('Lets external apps sign in over the REST API with their own password. Leave enabled only if something actually connects that way.')"
-                    :hint="$t('Switched on here means application passwords are turned off.')">
-            <el-switch v-model="settings.disable_app_login" active-value="yes" inactive-value="no"/>
-        </SettingRow>
+        <!--
+            No recommendation on purpose. Blocking these is sound hardening on a site
+            that does not use them and breaks every integration on a site that does, so
+            there is no answer to recommend - which is why "apply recommended" leaves
+            them enabled, and why flagging them here would contradict it.
+        -->
+        <SettingToggle v-model="settings.disable_app_login"
+                       :label="$t('Block application passwords')"
+                       :description="$t('These let external apps sign in over the REST API. Leave this off only if something connects that way.')"/>
 
-        <SettingRow :label="$t('Public user listing')"
-                    :description="$t('WordPress will list your usernames over the REST API to anyone who asks. Those names are half of every password guess.')"
-                    :hint="$t('Recommended: disabled.')">
-            <el-switch v-model="settings.disable_users_rest" active-value="yes" inactive-value="no"/>
-        </SettingRow>
+        <SettingToggle v-model="settings.disable_users_rest" recommend="yes"
+                       :label="$t('Hide the user list from the REST API')"
+                       :description="$t('WordPress will otherwise list your usernames to anyone who asks, and those names are half of every password guess.')"/>
 
-        <SettingRow :label="$t('Secure signup form')"
-                    :description="$t('Replaces the default registration form with one that verifies the email address before the account becomes usable.')">
-            <el-switch v-model="settings.secure_signup_form" active-value="yes" inactive-value="no"/>
-        </SettingRow>
+        <SettingToggle v-model="settings.secure_signup_form" recommend="yes"
+                       :label="$t('Verify email addresses on signup')"
+                       :description="$t('Replaces the default registration form with one that confirms the address before the account can be used.')"/>
     </div>
 </template>

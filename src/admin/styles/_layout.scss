@@ -423,6 +423,62 @@ body.toplevel_page_fluent-auth {
     margin-top: 16px;
 }
 
+/* -------------------------------------------------------- setting toggle */
+
+/*
+ * On/off settings put the switch beside the name it belongs to. The explanation hangs
+ * underneath, indented to the width of the switch so the text lines up as one column
+ * down the card and the switches make a second, narrower one.
+ */
+.fls_toggle {
+    @apply border-0 border-b border-solid border-gray-divider;
+
+    padding-top: 10px;
+    padding-bottom: 10px;
+
+    &:last-child {
+        @apply border-b-0;
+    }
+
+    .fls_toggle_main {
+        @apply flex items-center gap-3;
+    }
+
+    .fls_toggle_title {
+        @apply text-sm font-medium text-system-dark cursor-pointer select-none;
+    }
+
+    /* Only shown when the setting is not what it ought to be, so it reads as a flag. */
+    .fls_toggle_tag {
+        @apply text-xs font-normal text-warning-700 bg-warning-50 rounded;
+
+        margin-left: 8px;
+        padding: 1px 7px;
+        white-space: nowrap;
+    }
+
+    .fls_toggle_body {
+        /* The switch (40px) plus the gap beside it, so this starts under the title. */
+        padding-left: 52px;
+        max-width: 772px;
+
+        p {
+            @apply text-xs text-system-light m-0;
+
+            margin-top: 3px;
+            line-height: 1.5;
+        }
+
+        .fls_toggle_hint {
+            font-style: italic;
+        }
+    }
+
+    &.is-disabled .fls_toggle_title {
+        @apply text-system-light cursor-not-allowed;
+    }
+}
+
 /* ----------------------------------------------------------- setting row */
 
 /*
@@ -437,8 +493,8 @@ body.toplevel_page_fluent-auth {
 .fls_row {
     @apply flex items-start gap-6 border-0 border-b border-solid border-gray-divider;
 
-    padding-top: 14px;
-    padding-bottom: 14px;
+    padding-top: 12px;
+    padding-bottom: 12px;
 
     &:last-child {
         @apply border-b-0;

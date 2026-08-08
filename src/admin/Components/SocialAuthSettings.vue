@@ -2,11 +2,12 @@
 import SettingsHeader from './Settings/_SettingsHeader.vue';
 import SettingsCard from './Settings/_SettingsCard.vue';
 import SettingRow from './Settings/_SettingRow.vue';
+import SettingToggle from './Settings/_SettingToggle.vue';
 import SocialProvider from './Social/_SocialProvider.vue';
 
 export default {
     name: 'SocialAuthSettings',
-    components: {SettingsHeader, SettingsCard, SettingRow, SocialProvider},
+    components: {SettingsHeader, SettingsCard, SettingRow, SettingToggle, SocialProvider},
     data() {
         return {
             loading: false,
@@ -103,10 +104,9 @@ export default {
                                     :available="!!auth_info.google.is_available"
                                     :unavailable-note="$t('Google sign-in is not available on this server.')">
                         <template #extra>
-                            <SettingRow :label="$t('One-tap sign-in')"
-                                        :description="$t('Shows a Google prompt on the page itself rather than waiting for someone to press a button. Your site\'s domain has to be listed under Authorized JavaScript origins in the Google app.')">
-                                <el-switch v-model="settings.google_one_tap" active-value="yes" inactive-value="no"/>
-                            </SettingRow>
+                            <SettingToggle v-model="settings.google_one_tap"
+                                           :label="$t('One-tap sign-in')"
+                                           :description="$t('Shows a Google prompt on the page itself rather than waiting for someone to press a button. Your site\'s domain has to be listed under Authorized JavaScript origins in the Google app.')"/>
                         </template>
                     </SocialProvider>
 
