@@ -1,22 +1,12 @@
-<template>
-    <h3>{{ filePath }}</h3>
-
-    <div v-loading="loading" :element-loading-text="$t('Loading file…')">
-        <div v-if="error">
-            <pre>{{error}}</pre>
-        </div>
-        <div v-else-if="!hasDiff">
-            <el-input type="textarea" :rows="30" v-model="fileContent" :readonly="true"></el-input>
-        </div>
-        <div v-else class="diff_viewer">
-            <el-scrollbar :style="{height: '500px'}" class="diff_viewer">
-                <pre class="fls_diff_view" id="fls_diff_viewer" ref="fls_diff_viewer"></pre>
-            </el-scrollbar>
-        </div>
-    </div>
-</template>
-
 <script type="text/babel">
+/*
+ * What actually changed in one file.
+ *
+ * A new file has nothing to compare against, so it is shown as it stands; a modified one is
+ * shown against the official release. The diff is built into elements with classes rather
+ * than into spans with inline colours: coloured text alone is unreadable on a dark
+ * background, and a tinted line with a gutter mark says the same thing in both themes.
+ */
 export default {
     name: 'ViewFile',
     props: ['viewing_file'],
@@ -34,6 +24,7 @@ export default {
         getFileContent() {
             this.error = '';
             this.loading = true;
+
             this.$get('security-scan-settings/scan/view-file', {viewing_file: this.viewing_file})
                 .then(response => {
                     this.filePath = response.filePath;
@@ -43,43 +34,62 @@ export default {
 
                     if (response.hasDiff) {
                         this.$nextTick(() => {
-                            this.initDiff();
+                            this.renderDiff();
                         });
                     }
                 })
-                .catch((errors) => {
+                .catch(errors => {
                     this.$handleError(errors);
-                    this.error = errors?.message;
+                    this.error = errors && errors.message ? errors.message : '';
                 })
                 .finally(() => {
                     this.loading = false;
                 });
         },
-        initDiff() {
-            var color = '',
-                span = null;
+        renderDiff() {
+            const target = this.$refs.fls_diff_viewer;
 
-            var diff = Diff.diffLines(this.originalFileContent, this.fileContent),
-                display = this.$refs.fls_diff_viewer,
-                fragment = document.createDocumentFragment();
+            if (!target || typeof Diff === 'undefined') {
+                return;
+            }
 
-            diff.forEach(function (part) {
-                // green for additions, red for deletions
-                // grey for common parts
-                color = part.added ? 'green' :
-                    part.removed ? 'red' : 'grey';
-                span = document.createElement('span');
-                span.style.color = color;
-                span.appendChild(document
-                    .createTextNode(part.value));
-                fragment.appendChild(span);
+            const parts = Diff.diffLines(this.originalFileContent, this.fileContent);
+            const fragment = document.createDocumentFragment();
+
+            parts.forEach(part => {
+                const line = document.createElement('span');
+
+                line.className = 'fls_diff_part';
+
+                if (part.added) {
+                    line.classList.add('is_added');
+                } else if (part.removed) {
+                    line.classList.add('is_removed');
+                }
+
+                line.appendChild(document.createTextNode(part.value));
+                fragment.appendChild(line);
             });
 
-            display.appendChild(fragment);
+            target.innerHTML = '';
+            target.appendChild(fragment);
         }
     },
     mounted() {
         this.getFileContent();
-    },
+    }
 }
 </script>
+
+<template>
+    <div v-loading="loading" :element-loading-text="$t('Loading file…')">
+        <p class="fls_file_view_path">{{ filePath }}</p>
+
+        <pre v-if="error" class="fls_code">{{ error }}</pre>
+
+        <el-input v-else-if="!hasDiff" type="textarea" :rows="24" v-model="fileContent"
+                  :readonly="true"/>
+
+        <pre v-else ref="fls_diff_viewer" class="fls_diff"></pre>
+    </div>
+</template>

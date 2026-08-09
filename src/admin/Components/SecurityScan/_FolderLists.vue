@@ -1,65 +1,20 @@
-<template>
-    <div class="box dashboard_box">
-        <div class="box_header" style="padding: 10px 15px; font-weight: bold; font-size: 16px;">
-            {{$t('Extra Folders in Root')}}
-        </div>
-        <div class="box_body">
-            <div class="fls_file_lists">
-                <div class="fls_file_item" v-for="file in formattedFiles"
-                     :class="[
-                          (file.isIgnored) ? 'fls_file_ignored' : ''
-                     ]"
-                     :key="file"
-                >
-                    <div class="fls_file_title">
-                        <el-tag size="small" type="info" :class="'fls_file_icon_type_' + file.status"
-                                class="fls_file_icon">
-                            <el-icon>
-                                <FolderOpened/>
-                            </el-icon>
-                        </el-tag>
-                        <span>{{ file.file }}</span>
-                        <el-tag v-if="file.isIgnored" size="small" type="info" class="fls_file_icon">
-                            <MuteNotification/>
-                            <span>{{$t('Ignored')}}</span>
-                        </el-tag>
-                    </div>
-                    <div v-loading="workingFile == file.file" class="fls_file_status">
-                        <el-dropdown @command="handleCommand" trigger="click">
-                            <el-button text class="el-dropdown-link">
-                                <el-icon>
-                                    <MoreFilled/>
-                                </el-icon>
-                            </el-button>
-                            <template #dropdown>
-                                <el-dropdown-menu>
-                                    <el-dropdown-item :command="file">
-                                        <span v-if="file.isIgnored">
-                                            {{ $t('Remove from Ignore List') }}
-                                        </span>
-                                        <span v-else>
-                                             {{ $t('Add to Ignore List') }}
-                                        </span>
-                                    </el-dropdown-item>
-                                </el-dropdown-menu>
-                            </template>
-                        </el-dropdown>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script type="text/babel">
 import each from 'lodash/each';
+import icons from './icons';
 
+/*
+ * Directories in the site root that WordPress did not put there. Not a finding on its own -
+ * plenty of installs have one - which is why the ignore list exists.
+ *
+ * Rows only, like _FileRows: these appear inside the expanded core panel, so the panel around
+ * them belongs to the caller.
+ */
 export default {
     name: 'FolderLists',
     props: {
         files: {
-            type: Object,
-            default: () => ({})
+            type: Array,
+            default: () => []
         },
         ignoredFiles: {
             type: Array,
@@ -72,49 +27,47 @@ export default {
     },
     data() {
         return {
+            icons,
             workingFile: ''
         }
     },
     computed: {
         formattedFiles() {
-            let formatted = [];
+            const formatted = [];
+            const ignoredFiles = this.ignoredFiles || [];
 
-            let ignoredFiles = this.ignoredFiles;
-
-            if (!ignoredFiles || !ignoredFiles.length) {
-                ignoredFiles = [];
-            }
-
-            each(this.files, (file) => {
+            each(this.files, folder => {
                 formatted.push({
-                    file: file,
-                    relativeName: file,
-                    isIgnored: ignoredFiles.includes(file),
+                    file: folder,
+                    isIgnored: ignoredFiles.includes(folder)
                 });
             });
 
             return formatted;
-        }
+        },
     },
     methods: {
-        handleCommand(file) {
-            this.workingFile = file.file;
-            let willRemove = file.isIgnored;
+        toggleIgnore(folder) {
+            this.workingFile = folder.file;
+
+            const willRemove = folder.isIgnored;
+
             this.$post('security-scan-settings/scan/toggle-ignore', {
                 will_remove: willRemove ? 'yes' : 'no',
-                file: file.file,
+                file: folder.file,
                 is_folder: 'yes'
             })
-                .then((response) => {
+                .then(response => {
                     this.$notify.success(response.message);
+
                     if (willRemove) {
-                        this.ignoredFiles.splice(this.ignoredFiles.indexOf(file.file), 1);
+                        this.ignoredFiles.splice(this.ignoredFiles.indexOf(folder.file), 1);
                     } else {
-                        this.ignoredFiles.push(this.workingFile);
+                        this.ignoredFiles.push(folder.file);
                     }
                 })
-                .catch((errors) => {
-                    this.$handleError(errors)
+                .catch(errors => {
+                    this.$handleError(errors);
                 })
                 .finally(() => {
                     this.workingFile = '';
@@ -123,3 +76,33 @@ export default {
     }
 }
 </script>
+
+<template>
+    <ul class="fls_scan_files">
+        <li v-for="folder in formattedFiles" :key="folder.file"
+            v-loading="workingFile === folder.file"
+            :class="{is_ignored: folder.isIgnored}">
+            <div class="fls_scan_file_main">
+                <span class="fls_tag is_neutral">{{ $t('Folder') }}</span>
+                <span v-if="folder.isIgnored" class="fls_tag is_neutral">{{ $t('Ignored') }}</span>
+                <span class="fls_scan_file_name">{{ folder.file }}</span>
+            </div>
+
+            <div class="fls_scan_file_aside">
+                <div class="fls_scan_file_actions">
+                    <el-dropdown trigger="click" @command="toggleIgnore">
+                        <button type="button" class="fls_icon_btn" :title="$t('More')"
+                                v-html="icons.more"></button>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item :command="folder">
+                                    {{ folder.isIgnored ? $t('Remove from Ignore List') : $t('Add to Ignore List') }}
+                                </el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
+                </div>
+            </div>
+        </li>
+    </ul>
+</template>

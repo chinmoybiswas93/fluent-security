@@ -10,6 +10,7 @@ class Helper
     private static $resolvedIp = null;
     private static $trustedProxies = null;
     private static $tokenVerifiedLogin = false;
+    private static $satisfiedFactors = null;
 
     public static function resetStatics()
     {
@@ -19,6 +20,40 @@ class Helper
         self::$resolvedIp = null;
         self::$trustedProxies = null;
         self::$tokenVerifiedLogin = false;
+        self::$satisfiedFactors = null;
+        \FluentAuth\App\Services\TwoFa\TwoFaService::resetMethods();
+    }
+
+    /**
+     * Records everything the first step of the login in progress actually proved.
+     *
+     * The second factor is chosen against this set: a method proving something already
+     * in it is skipped, one proving anything else is still required. It is a set rather
+     * than a single value because one step can prove more than one thing - a social
+     * login proves both the provider and, since the account is matched on a provider
+     * verified address, the mailbox behind it.
+     *
+     * @param $factors array of AuthFactor constants
+     * @return void
+     */
+    public static function setSatisfiedFactors($factors)
+    {
+        self::$satisfiedFactors = array_values(array_unique((array)$factors));
+    }
+
+    /**
+     * Defaults to a password, because that is the only route reaching wp_authenticate
+     * without having announced itself.
+     *
+     * @return array
+     */
+    public static function getSatisfiedFactors()
+    {
+        if (self::$satisfiedFactors === null) {
+            return [\FluentAuth\App\Services\TwoFa\AuthFactor::KNOWLEDGE];
+        }
+
+        return self::$satisfiedFactors;
     }
 
     /**
@@ -70,6 +105,11 @@ class Helper
             'magic_link_primary'      => 'no',
             'email2fa'                => 'no',
             'email2fa_roles'          => ['administrator', 'editor', 'author'],
+            'totp_2fa'                => 'no',
+            // Roles that may set up an authenticator app. Empty means none of them can.
+            'totp_2fa_roles'          => [],
+            // Roles that must have one before they can use the admin area.
+            'totp_required_roles'     => [],
             'disable_admin_bar'       => 'no',
             'disable_bar_roles'       => [
                 'subscriber'
@@ -89,6 +129,92 @@ class Helper
 
         $settings = wp_parse_args($settings, $defaults);
         return $settings;
+    }
+
+    /**
+     * What this plugin thinks a well configured site looks like.
+     *
+     * The one place that says so. "Apply recommended" writes this map over the saved
+     * settings, and the dashboard's security checklist scores a site against the same map,
+     * so a recommendation cannot be made in one place and contradicted in the other -
+     * which is what happened when each of them carried its own copy.
+     *
+     * Two kinds of setting are deliberately absent, and both would do harm if added:
+     *
+     * - Ones with no right answer for every site. Blocking application passwords is sound
+     *   hardening where nothing connects over the REST API and breaks every integration
+     *   where something does; the same goes for anything else a site may legitimately
+     *   depend on. Being absent here means "apply recommended" leaves it alone rather than
+     *   undoing a deliberate choice, and the checklist does not score it.
+     * - Ones that describe the server rather than a preference - trusted proxies, the
+     *   forwarded-IP header - and ones that lock people out if imposed, like the roles
+     *   required to have an authenticator app.
+     *
+     * @return array
+     */
+    public static function getRecommendedSettings()
+    {
+        return apply_filters('fluent_auth/recommended_settings', [
+            'disable_xmlrpc'          => 'yes',
+            'disable_users_rest'      => 'yes',
+            'secure_signup_form'      => 'yes',
+            'login_try_limit'         => 5,
+            'login_try_timing'        => 30,
+            'auto_delete_logs_day'    => 30,
+            'notification_user_roles' => ['administrator', 'editor', 'author'],
+            'notification_email'      => '{admin_email}',
+            'notify_on_blocked'       => 'no',
+            'magic_login'             => 'no',
+            'magic_restricted_roles'  => [],
+            'magic_link_primary'      => 'no',
+            'email2fa'                => 'yes',
+            'email2fa_roles'          => ['administrator', 'editor', 'author'],
+            'totp_2fa'                => 'yes',
+            /*
+             * Offered to the roles that can change the site, matching the email codes
+             * above. An empty list here would switch the method on for nobody, which is
+             * a recommendation that reads as done and protects no one.
+             *
+             * Offering it is all this does. Which roles must have one stays absent for
+             * the reason given above: imposing that locks people out.
+             */
+            'totp_2fa_roles'          => ['administrator', 'editor', 'author'],
+            'disable_bar_roles'       => ['subscriber']
+        ]);
+    }
+
+    /**
+     * Names for the `media` a login came through.
+     *
+     * The column stores the internal handle - `web`, `totp`, `magic_login`, or whichever
+     * social provider was used - and two screens show it: the logs table and the dashboard's
+     * breakdown of how people signed in. One map, so they cannot name the same thing
+     * differently. Anything not listed is titled from its own handle rather than hidden,
+     * because an integration may add its own.
+     *
+     * @param string $media
+     * @return string
+     */
+    public static function getLoginMediaLabel($media)
+    {
+        $media = $media ?: 'web';
+
+        $labels = apply_filters('fluent_auth/login_media_labels', [
+            'web'         => __('Login form', 'fluent-security'),
+            'magic_login' => __('Magic link', 'fluent-security'),
+            'email_2fa'   => __('Email code', 'fluent-security'),
+            'totp'        => __('Authenticator app', 'fluent-security'),
+            'app_password' => __('Application password', 'fluent-security'),
+            'google'      => __('Google', 'fluent-security'),
+            'github'      => __('GitHub', 'fluent-security'),
+            'facebook'    => __('Facebook', 'fluent-security')
+        ]);
+
+        if (isset($labels[$media])) {
+            return $labels[$media];
+        }
+
+        return ucwords(str_replace('_', ' ', $media));
     }
 
     public static function getAppPermission()
@@ -590,11 +716,15 @@ class Helper
      * Works on the packed binary form, because ip2long() - what this used to rely on -
      * simply returns false for any IPv6 address.
      *
+     * Public because the trusted proxy list is no longer the only thing matching an
+     * address against a range - the IP allow and block lists do the same, and a second
+     * implementation of CIDR matching is the last thing a security plugin needs.
+     *
      * @param $ip string
      * @param $range string
      * @return bool
      */
-    private static function ipInRange($ip, $range)
+    public static function ipInRange($ip, $range)
     {
         if (strpos($range, '/') === false) {
             return $ip === $range;

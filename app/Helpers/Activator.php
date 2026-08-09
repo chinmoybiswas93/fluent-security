@@ -31,6 +31,7 @@ class Activator
     {
         self::migrateLogsTable();
         self::migrateHashesTable();
+        self::migrateTotpAllowedRoles();
 
         if (!wp_next_scheduled('fluent_auth_daily_tasks')) {
             wp_schedule_event(time(), 'daily', 'fluent_auth_daily_tasks');
@@ -40,6 +41,35 @@ class Activator
             wp_schedule_event(time(), 'hourly', 'fluent_auth_hourly_tasks');
         }
 
+    }
+
+    /**
+     * An empty list of roles allowed an authenticator app used to mean every role. It
+     * now means none of them, which is the safer default to leave a field on - but read
+     * against a site that already had the method switched on with the field untouched,
+     * it silently stops asking enrolled users for the app they set up. Their secret is
+     * still there; nothing would ask for it again.
+     *
+     * So the old reading is written out as what it meant, once, and the setting says
+     * afterwards exactly what it did before.
+     *
+     * @return void
+     */
+    private static function migrateTotpAllowedRoles()
+    {
+        $settings = get_option('__fls_auth_settings');
+
+        if (!$settings || !is_array($settings)) {
+            return;
+        }
+
+        if (Arr::get($settings, 'totp_2fa') !== 'yes' || !empty($settings['totp_2fa_roles'])) {
+            return;
+        }
+
+        $settings['totp_2fa_roles'] = array_keys(wp_roles()->get_names());
+
+        update_option('__fls_auth_settings', $settings, false);
     }
 
     private static function migrateLogsTable()

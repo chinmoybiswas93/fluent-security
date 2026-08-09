@@ -5,6 +5,7 @@ namespace FluentAuth\App\Http\Controllers;
 use FluentAuth\App\Helpers\Arr;
 use FluentAuth\App\Helpers\Helper;
 use FluentAuth\App\Hooks\Handlers\ServerModeHandler;
+use FluentAuth\App\Services\ProxyDetection;
 
 class SettingsController
 {
@@ -15,7 +16,13 @@ class SettingsController
             'user_roles'          => Helper::getUserRoles(),
             'low_level_roles'     => Helper::getLowLevelRoles(),
             // wp-config.php wins over the saved settings, so say so in the UI.
-            'proxy_config_locked' => defined('FLUENT_AUTH_TRUSTED_PROXIES') && FLUENT_AUTH_TRUSTED_PROXIES
+            'proxy_config_locked' => defined('FLUENT_AUTH_TRUSTED_PROXIES') && FLUENT_AUTH_TRUSTED_PROXIES,
+            /*
+             * Read from the administrator's own request, so the screen can stay out of
+             * the way on the sites that will never need it and speak up on the ones
+             * where it is already going wrong.
+             */
+            'proxy_detection'     => ProxyDetection::detect()
         ];
     }
 
@@ -61,6 +68,37 @@ class SettingsController
             }
         }
 
+        /*
+         * Every one of these is a list of roles, and an emptied multi-select posts an
+         * empty string rather than an empty array. Nothing breaks on it today only
+         * because each reader happens to test the value for truth before using it - and
+         * `array_intersect('', ...)` is a TypeError waiting for the first one that does
+         * not. Stored as the arrays they are declared to be.
+         */
+        $roleLists = [
+            'notification_user_roles',
+            'magic_restricted_roles',
+            'email2fa_roles',
+            'totp_2fa_roles',
+            'totp_required_roles',
+            'disable_bar_roles'
+        ];
+
+        foreach ($roleLists as $listKey) {
+            if (array_key_exists($listKey, $settings)) {
+                $settings[$listKey] = array_values(array_filter((array)$settings[$listKey]));
+            }
+        }
+
+        /*
+         * A switch and a role list saying the same thing, where one combination - on,
+         * with nobody chosen - already did nothing, because both handlers return early
+         * on an empty list. The screen now offers only the list, so the switch is
+         * derived from it and the two can no longer disagree. It is still stored,
+         * because the handlers and anything filtering them read it by name.
+         */
+        $settings['disable_admin_bar'] = empty($settings['disable_bar_roles']) ? 'no' : 'yes';
+
         $errors = [];
 
         // Always required now: the attempt limit is no longer something that can be
@@ -79,7 +117,35 @@ class SettingsController
 
         if ($settings['email2fa'] == 'yes' && empty($settings['email2fa_roles'])) {
             $errors['email2fa_roles'] = [
-                'required' => 'Two-Factor Authentication roles is required'
+                'required' => 'Please choose at least one role that needs an emailed code'
+            ];
+        }
+
+        /*
+         * A role cannot be made to set up an authenticator app unless it is also allowed
+         * one - that would be a policy demanding something the setup screen refuses to
+         * offer, which is a locked out user rather than a secured one.
+         *
+         * An empty allow list means nobody may, so it conflicts with every required role
+         * rather than with none of them - which is why this is not guarded on the allow
+         * list being non-empty.
+         */
+        if (!empty($settings['totp_required_roles'])) {
+            $undeclared = array_diff((array)$settings['totp_required_roles'], (array)$settings['totp_2fa_roles']);
+
+            if ($undeclared) {
+                $errors['totp_required_roles'] = [
+                    'invalid' => sprintf(
+                        'These roles are required to use an authenticator app but are not allowed one: %s',
+                        implode(', ', $undeclared)
+                    )
+                ];
+            }
+        }
+
+        if ($settings['totp_2fa'] !== 'yes' && !empty($settings['totp_required_roles'])) {
+            $errors['totp_required_roles'] = [
+                'invalid' => 'Authenticator apps must be enabled before any role can be required to use one'
             ];
         }
 

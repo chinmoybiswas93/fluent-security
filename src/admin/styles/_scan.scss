@@ -1,0 +1,723 @@
+/*
+ * The security scans screen.
+ *
+ * Laid out on the shared two-column shell (.fls_page, see _layout.scss): the scan and what
+ * it found on the left, how the scanning is set up on the right. It is built from the
+ * dashboard's card (.fls_dcard) and the shared status word (.fls_tag) rather than from
+ * anything of its own, so the two screens read as one product.
+ */
+
+/* ------------------------------------------------------------------ verdict */
+
+/*
+ * The answer to the only question this screen is asked: is anything wrong. It is a band
+ * across the top of the column rather than a card, because it is a summary of the cards
+ * below it and not another one of them.
+ */
+.fls_scan_verdict {
+    @apply flex items-start rounded border border-solid;
+
+    gap: 12px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+
+    .fls_scan_verdict_icon {
+        @apply flex flex-none items-center justify-center rounded-full;
+
+        width: 28px;
+        height: 28px;
+
+        svg {
+            width: 16px;
+            height: 16px;
+        }
+    }
+
+    h2 {
+        @apply text-sm font-medium m-0;
+
+        line-height: 20px;
+    }
+
+    p {
+        @apply text-xs m-0;
+
+        margin-top: 4px;
+        line-height: 1.6;
+    }
+
+    /* How much there is to read, so the size of the problem is clear before scrolling. */
+    .fls_scan_verdict_count {
+        @apply text-xs font-medium text-ink-mid;
+
+        margin-top: 6px;
+    }
+
+    &.is_danger {
+        @apply bg-danger-wash border-danger-line;
+
+        .fls_scan_verdict_icon {
+            @apply bg-danger-bg text-danger-fg;
+        }
+
+        h2 {
+            @apply text-danger-fg;
+        }
+
+        p {
+            @apply text-ink-mid;
+        }
+    }
+
+    &.is_warning {
+        @apply bg-caution-wash border-caution-line;
+
+        .fls_scan_verdict_icon {
+            @apply bg-caution-bg text-caution-fg;
+        }
+
+        h2 {
+            @apply text-caution-fg;
+        }
+
+        p {
+            @apply text-ink-mid;
+        }
+    }
+
+    &.is_success {
+        @apply bg-ok-wash border-ok-line;
+
+        .fls_scan_verdict_icon {
+            @apply bg-ok-bg text-ok-fg;
+        }
+
+        h2 {
+            @apply text-ok-fg;
+        }
+
+        p {
+            @apply text-ink-mid;
+        }
+    }
+}
+
+/* -------------------------------------------------------------------- state */
+
+/*
+ * The screen before there is anything to show: never scanned, scanning, or scanned and
+ * clean. One panel that says where you are and what to do next, at a height that does not
+ * leave the column looking like it failed to load.
+ */
+.fls_scan_state {
+    @apply flex flex-col items-center text-center;
+
+    padding: 40px 24px;
+
+    .fls_scan_state_icon {
+        @apply flex flex-none items-center justify-center rounded-full bg-surface-sunk text-ink-mid;
+
+        width: 56px;
+        height: 56px;
+        margin-bottom: 16px;
+
+        svg {
+            width: 26px;
+            height: 26px;
+        }
+    }
+
+    h2 {
+        @apply text-base font-medium m-0;
+
+        color: var(--fls-text);
+    }
+
+    p {
+        @apply text-sm text-ink-mid m-0;
+
+        margin-top: 8px;
+        max-width: 460px;
+        line-height: 1.6;
+    }
+
+    /* The scan came back with an error rather than a result - that is the whole message. */
+    .fls_scan_state_error {
+        @apply text-danger-fg;
+    }
+
+    .fls_scan_state_actions {
+        @apply flex flex-wrap items-center justify-center;
+
+        gap: 12px;
+        margin-top: 20px;
+    }
+
+    /* Nothing is wrong, and the panel should say so before it says anything else. */
+    &.is_clean .fls_scan_state_icon {
+        @apply bg-ok-bg text-ok-fg;
+    }
+
+    &.is_working .fls_scan_state_icon {
+        @apply bg-accent-wash text-ink-mid;
+    }
+}
+
+/* The bar under "Scanning in progress", so the wait has something to watch. */
+.fls_scan_progress {
+    @apply w-full rounded-xs bg-surface-raised overflow-hidden;
+
+    height: 4px;
+    max-width: 260px;
+    margin-top: 20px;
+
+    &::after {
+        content: '';
+        @apply block h-full rounded-xs bg-accent;
+
+        width: 40%;
+        animation: fls_scan_sweep 1.4s ease-in-out infinite;
+    }
+}
+
+@keyframes fls_scan_sweep {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(250%);
+    }
+}
+
+/*
+ * The determinate bar, for the phases that walk a list.
+ *
+ * Core is one request and gets the sweep above; plugins and themes have a real count, and a
+ * scan of forty of them runs long enough that a sweep would read as a hang.
+ */
+.fls_scan_meter {
+    @apply w-full rounded-xs bg-surface-raised overflow-hidden;
+
+    height: 4px;
+    max-width: 260px;
+    margin-top: 20px;
+}
+
+.fls_scan_meter_bar {
+    @apply h-full rounded-xs bg-accent;
+
+    transition: width .25s ease;
+}
+
+.fls_scan_meter_count {
+    @apply text-xs text-ink-light;
+
+    margin: 8px 0 0;
+    font-variant-numeric: tabular-nums;
+}
+
+/* The plugin or theme in hand, so a long wait names what it is waiting on. */
+.fls_scan_current {
+    @apply truncate;
+
+    max-width: 320px;
+    color: var(--fls-text);
+}
+
+/*
+ * Core, plugins, themes - left in place as they finish rather than replaced, because "core
+ * was fine" is worth seeing while the plugins are still going.
+ */
+.fls_scan_phases {
+    @apply flex items-center justify-center m-0 p-0 list-none;
+
+    gap: 18px;
+    margin-top: 18px;
+
+    > li {
+        @apply flex items-center text-xs text-ink-light m-0;
+
+        gap: 5px;
+    }
+
+    .is_active {
+        @apply font-medium;
+
+        color: var(--fls-text);
+    }
+
+    .is_done {
+        @apply text-ok-fg;
+    }
+
+    .fls_scan_phase_mark {
+        @apply flex items-center;
+
+        svg {
+            width: 13px;
+            height: 13px;
+        }
+    }
+}
+
+/* -------------------------------------------------------------- file lists */
+
+/*
+ * One card per place the scanner looked, so a long list of changes still reads as "these
+ * three are in wp-includes" rather than as one wall of paths.
+ */
+.fls_scan_group_path {
+    @apply font-medium;
+
+    font-family: Menlo, Consolas, monospace;
+    font-size: 13px;
+}
+
+/* ------------------------------------------------------- summaries and detail */
+
+/*
+ * One subject, one verdict, one line: core, or a plugin, or a theme.
+ *
+ * Rendered as a <button> when there is detail to open and a <div> when there is not, so the
+ * pointer and the keyboard both get the truth about whether the row does anything. The two
+ * cases have to look identical, which is why every button style here is reset by hand rather
+ * than inherited.
+ */
+.fls_scan_summary {
+    @apply flex w-full items-center bg-transparent border-0 text-left;
+
+    gap: 10px;
+    padding: 14px 20px;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    box-shadow: none;
+
+    &:hover {
+        @apply bg-surface-sunk;
+    }
+
+    &:focus-visible {
+        @apply outline-none bg-surface-sunk;
+    }
+
+    /* Nothing to open: no hover, no pointer, no promise. */
+    &.is_static {
+        cursor: default;
+
+        &:hover {
+            @apply bg-transparent;
+        }
+    }
+
+    /* Inside a list of extensions the rows are tighter than a card head. */
+    &.is_row {
+        padding: 11px 20px;
+    }
+
+    .fls_scan_summary_icon {
+        @apply flex flex-none items-center text-ink-light;
+    }
+
+    .fls_scan_summary_name {
+        @apply truncate font-medium;
+
+        min-width: 0;
+        color: var(--fls-text);
+    }
+
+    /*
+     * The verdict sits hard right, so a column of them can be read straight down. Wrapped
+     * rather than aligned per tag: a row can carry two ("No changes" plus "4 ignored"), and two
+     * auto margins would push them to opposite ends instead of keeping them together.
+     */
+    .fls_scan_summary_tags {
+        @apply flex flex-none items-center;
+
+        gap: 8px;
+        margin-left: auto;
+    }
+
+    .fls_scan_summary_reason {
+        @apply flex-none text-xs text-ink-light text-right;
+
+        margin-left: auto;
+    }
+}
+
+.fls_scan_chevron {
+    @apply flex flex-none items-center text-ink-light;
+
+    transition: transform .15s ease;
+}
+
+.is_open > .fls_scan_chevron,
+.fls_scan_summary.is_open .fls_scan_chevron {
+    transform: rotate(180deg);
+}
+
+.fls_scan_exts {
+    @apply m-0 p-0 list-none;
+
+    > li {
+        @apply border-0 border-b border-solid border-hairline;
+
+        margin: 0;
+
+        &:last-child {
+            @apply border-b-0;
+        }
+    }
+}
+
+/*
+ * A row for an extension whose version WordPress.org has never published.
+ *
+ * Given a red edge rather than a red fill: it sits in a list of ordinary rows and has to be
+ * findable at a glance while scrolling, but a filled row would shout down the file-level
+ * findings around it, which are not lesser problems - only different ones.
+ */
+.fls_scan_ext.is_alarming {
+    @apply bg-danger-wash;
+
+    box-shadow: inset 3px 0 0 0 var(--fls-danger-line);
+
+    .fls_scan_summary:hover {
+        @apply bg-danger-bg;
+    }
+}
+
+/* What an unpublished version means, in place of the file list it has no way to show. */
+.fls_scan_explain {
+    @apply flex flex-col items-start;
+
+    gap: 10px;
+    padding: 16px 20px 18px;
+
+    p {
+        @apply text-sm text-ink-mid;
+
+        margin: 0;
+        max-width: 72ch;
+    }
+
+    .fls_scan_explain_path {
+        @apply text-xs text-ink-light;
+
+        font-family: Menlo, Consolas, monospace;
+    }
+}
+
+.fls_scan_exts_more {
+    @apply flex justify-center border-0 border-t border-solid border-hairline;
+
+    padding: 8px 20px;
+}
+
+/*
+ * The opened detail. Sunk rather than outlined: it belongs to the row above it, and a border
+ * would make it read as the next item in the list.
+ */
+.fls_scan_detail {
+    @apply bg-surface-sunk border-0 border-t border-solid border-hairline;
+
+    padding-bottom: 6px;
+
+    .fls_scan_files > li:hover {
+        @apply bg-transparent;
+    }
+}
+
+.fls_scan_detail_head {
+    @apply text-xs text-ink-mid font-medium;
+
+    margin: 0;
+    padding: 12px 20px 4px;
+    font-family: Menlo, Consolas, monospace;
+
+    /* For a heading that is a description rather than a path. */
+    &.is_prose {
+        font-family: inherit;
+    }
+}
+
+/*
+ * A section's standing explanation, above its rows. Padded to the rows' own inset and given
+ * the border they would otherwise butt against, so it reads as part of the list.
+ */
+.fls_scan_section_note {
+    @apply text-sm text-ink-mid border-0 border-b border-solid border-hairline;
+
+    margin: 0;
+    padding: 4px 20px 16px;
+    max-width: 78ch;
+}
+
+/* Findings past the stored cap: the count survives, the paths do not. */
+.fls_scan_files_more {
+    @apply text-xs text-ink-light;
+
+    display: block;
+    padding: 10px 20px;
+}
+
+/* Before a scan: what this screen is for, above the sections it will fill in. */
+.fls_scan_intro {
+    @apply flex flex-col items-start;
+
+    gap: 12px;
+    margin-bottom: 16px;
+
+    p {
+        @apply text-sm text-ink-mid;
+
+        margin: 0;
+        max-width: 62ch;
+    }
+}
+
+/*
+ * The version an extension's files were compared against. Set apart from the name because it
+ * is the thing that makes the comparison meaningful, not decoration on the title.
+ */
+.fls_scan_group_version {
+    @apply flex-none rounded-xs bg-surface-sunk text-xs text-ink-mid font-normal;
+
+    padding: 1px 6px;
+    font-family: Menlo, Consolas, monospace;
+}
+
+.fls_scan_files {
+    @apply m-0 p-0 list-none;
+
+    > li {
+        @apply flex items-center justify-between border-0 border-b border-solid border-hairline;
+
+        gap: 12px;
+        margin: 0;
+        padding: 12px 20px;
+
+        &:last-child {
+            @apply border-b-0;
+        }
+
+        &:hover {
+            @apply bg-surface-sunk;
+        }
+    }
+
+    /* Still listed and still actionable, simply not counted against the site. */
+    .is_ignored {
+        .fls_scan_file_name,
+        .fls_scan_file_meta {
+            @apply opacity-60;
+        }
+    }
+}
+
+.fls_scan_file_main {
+    @apply flex items-center;
+
+    gap: 8px;
+    min-width: 0;
+}
+
+.fls_scan_file_name {
+    @apply truncate;
+
+    font-family: Menlo, Consolas, monospace;
+    font-size: 13px;
+    color: var(--fls-text);
+}
+
+.fls_scan_file_meta {
+    @apply flex-none text-xs text-ink-light;
+
+    white-space: nowrap;
+}
+
+/*
+ * The actions wait for the pointer, the way the dashboard's list rows do - a column of
+ * buttons down a list of file names reads as a list of buttons.
+ */
+.fls_scan_file_actions {
+    @apply flex flex-none items-center;
+
+    gap: 4px;
+    opacity: 0;
+    transition: opacity .15s ease;
+}
+
+.fls_scan_files > li:hover .fls_scan_file_actions,
+.fls_scan_file_actions:focus-within {
+    opacity: 1;
+}
+
+.fls_scan_file_aside {
+    @apply flex flex-none items-center;
+
+    gap: 10px;
+}
+
+/* ------------------------------------------------------------------- aside */
+
+/* A label and its answer, read down the column: interval, notification address, verdict. */
+.fls_scan_facts {
+    @apply flex flex-col m-0 p-0 list-none;
+
+    gap: 10px;
+
+    > li {
+        @apply flex items-start justify-between text-sm m-0;
+
+        gap: 12px;
+    }
+
+    .fls_scan_fact_label {
+        @apply flex-none text-ink-mid;
+    }
+
+    .fls_scan_fact_value {
+        @apply font-medium text-right;
+
+        color: var(--fls-text);
+        min-width: 0;
+        word-break: break-word;
+    }
+}
+
+/* The ignore list: what the scanner has been told not to mention again. */
+.fls_scan_ignores {
+    @apply flex flex-col m-0 p-0 list-none;
+
+    gap: 8px;
+
+    > li {
+        @apply flex items-center m-0 text-xs;
+
+        gap: 8px;
+        color: var(--fls-text-mid);
+        font-family: Menlo, Consolas, monospace;
+        word-break: break-all;
+
+        svg {
+            @apply flex-none text-ink-light;
+
+            width: 14px;
+            height: 14px;
+        }
+    }
+}
+
+.fls_scan_aside_actions {
+    margin-top: 16px;
+}
+
+/* --------------------------------------------------------------- registration */
+
+/*
+ * Getting an API key. A form in the middle of the column rather than a page of its own,
+ * because it is one step and the screen behind it is the point.
+ */
+/* On its own route the card holds nothing but this form, so it is capped to match it. */
+.fls_scan_register_page {
+    @apply mx-auto;
+
+    max-width: 700px;
+}
+
+.fls_scan_register {
+    max-width: 620px;
+    margin: 0 auto;
+    padding: 32px 24px 8px;
+
+    .fls_scan_register_head {
+        @apply text-center;
+
+        margin-bottom: 24px;
+
+        .fls_scan_register_icon {
+            @apply inline-flex items-center justify-center rounded-full bg-surface-sunk text-ink-mid;
+
+            width: 48px;
+            height: 48px;
+            margin-bottom: 12px;
+
+            svg {
+                width: 24px;
+                height: 24px;
+            }
+        }
+
+        h2 {
+            @apply text-base font-medium m-0;
+
+            color: var(--fls-text);
+        }
+
+        p {
+            @apply text-sm text-ink-mid m-0;
+
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+    }
+
+    .fls_scan_register_foot {
+        @apply border-0 border-t border-solid border-hairline text-xs text-ink-light;
+
+        margin-top: 8px;
+        padding: 16px 0;
+        line-height: 1.6;
+
+        a {
+            color: inherit;
+        }
+    }
+}
+
+/* --------------------------------------------------------------- file viewer */
+
+/*
+ * The diff. Additions and removals are said with a tinted line and a gutter mark rather
+ * than with coloured text alone, which is unreadable on a dark background and hard work on
+ * a light one.
+ */
+.fls_diff {
+    @apply block m-0 overflow-auto rounded border border-solid border-hairline bg-surface-sunk;
+
+    max-height: 520px;
+    font-family: Menlo, Consolas, monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+
+    .fls_diff_part {
+        @apply block;
+
+        padding: 0 12px;
+        color: var(--fls-text-mid);
+
+        &.is_added {
+            @apply bg-ok-bg text-ok-fg;
+
+            box-shadow: inset 3px 0 0 #189877;
+        }
+
+        &.is_removed {
+            @apply bg-danger-bg text-danger-fg;
+
+            box-shadow: inset 3px 0 0 #F04438;
+        }
+    }
+}
+
+.fls_file_view_path {
+    @apply text-xs text-ink-mid;
+
+    font-family: Menlo, Consolas, monospace;
+    margin: 0 0 12px;
+    word-break: break-all;
+}

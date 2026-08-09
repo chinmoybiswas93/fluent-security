@@ -1,119 +1,14 @@
-<template>
-    <div class="box_wrapper">
-        <div class="box dashboard_box box_narrow">
-            <div class="box_header" style="padding: 15px;font-size: 16px;">
-                <div v-if="email" style="padding-top: 5px;" class="box_head">
-                    <el-tag type="success">
-                        {{$t('To:')}} {{ email.recipient }}
-                    </el-tag>
-                    {{ email.title }}
-                    <p style="margin: 5px 0 0 0; font-weight: 500;">{{ email.description }}</p>
-                </div>
-                <div style="display: flex;" class="box_actions">
-                    <el-button :disabled="saving" :loading="saving" @click="saveEmail" type="success">
-                        {{$t('Save Settings')}}
-                    </el-button>
-                </div>
-            </div>
-            <div v-loading="loading" class="box_body">
-                <div v-if="email && settings">
-                    <el-form v-model="settings" label-position="top" class="fls_email_form">
-                        <el-form-item :label="$t('Email Content Status')">
-                            <el-radio-group v-model="settings.status">
-                                <el-radio value="active" :label="$t('Customized Content')"></el-radio>
-                                <el-radio value="system" :label="$t('System Default')"></el-radio>
-                                <el-radio v-if="email.can_disable == 'yes'" value="disabled" :label="$t('Disabled')"></el-radio>
-                            </el-radio-group>
-                        </el-form-item>
-                        <div v-if="settings.status == 'system'" style="padding: 10px 20px;" class="text-bg-warning">
-                            <p style="margin: 0; font-size: 14px;">
-                                <strong>{{$t('System Default')}}</strong>
-                            </p>
-                            <p style="margin: 0; font-size: 13px;">
-                                {{$t('__email_default_system_desc__')}}
-                            </p>
-                        </div>
-                        <div v-else-if="settings.status == 'disabled'" style="padding: 10px 20px;" class="text-bg-warning">
-                            <p style="margin: 0; font-size: 14px;">
-                                <strong>{{$t('Notification is disabled')}}</strong>
-                            </p>
-                            <p style="margin: 0; font-size: 13px;">
-                                {{$t('This email notification is disabled. So no email notification will be sent for this event.')}}
-                            </p>
-                        </div>
-                        <template v-else-if="settings.status == 'active'">
-                            <el-form-item :label="$t('Email Subject')">
-                                <input-popover input_size="large" :input_placeholder="$t('Your Email Subject')" v-model="settings.email.subject" :data="smartcodes" />
-                            </el-form-item>
-                            <el-form-item :label="$t('Email Body')">
-                                <WpEditor v-if="!disableEditor" :editorShortcodes="smartcodes" v-model="settings.email.body"/>
-                                <div v-if="default_content?.email?.body" style="margin-top: 10px;">
-                                    <el-button @click="setDefaultContent()" size="small">
-                                        {{$t('Set Default Subject & Body')}}
-                                    </el-button>
-                                    <el-button @click="previewEmail()" size="small">{{$t('Preview Email')}}</el-button>
-                                </div>
-                            </el-form-item>
-                        </template>
-                        <el-form-item style="text-align: right; margin-top: 40px;">
-                            <el-button :disabled="saving" :loading="saving" @click="saveEmail" type="success">
-                                {{$t('Save Settings')}}
-                            </el-button>
-                        </el-form-item>
-
-                    </el-form>
-
-                    <div v-if="settings.status == 'active' && required_smartcodes && required_smartcodes.length" class="fls_errors">
-                        <p style="margin: 0; font-size: 14px;">
-                            <strong>{{$t('Please Provide the Required Smartcodes')}}</strong>
-                        </p>
-                        <ul style="margin: 0; padding-left: 20px;">
-                            <li v-for="(code, index) in required_smartcodes" :key="index">
-                                <span v-html="'{{'+code+'}}'"></span> or <span v-html="'##'+code+'##'"></span>
-                            </li>
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <el-dialog
-            v-model="showPreview"
-            :title="$t('Previewing Email')"
-            :width="800"
-            :close-on-click-modal="true"
-            :close-on-press-escape="true"
-            :before-close="() => { showPreview = false; }"
-        >
-            <PreviewEmail
-                v-if="showPreview"
-                :email_id="email_id"
-                :email_data="{subject: settings?.email?.subject, body: settings?.email?.body}"
-            />
-            <template #footer>
-                <div class="dialog-footer">
-                    <el-button type="primary" @click="showPreview = false">
-                        {{$t('Close')}}
-                    </el-button>
-                </div>
-            </template>
-        </el-dialog>
-
-    </div>
-</template>
-
 <script type="text/babel">
 import WpEditor from './_wp_editor.vue';
 import InputPopover from './MCE/InputPopover.vue';
 import PreviewEmail from "./PreviewEmail.vue";
+import SettingsHeader from '../Settings/_SettingsHeader.vue';
+import SettingsCard from '../Settings/_SettingsCard.vue';
+import SettingRow from '../Settings/_SettingRow.vue';
 
 export default {
     name: 'EditWpEmail',
-    components: {
-        PreviewEmail,
-        WpEditor,
-        InputPopover
-    },
+    components: {PreviewEmail, WpEditor, InputPopover, SettingsHeader, SettingsCard, SettingRow},
     props: {
         email_id: {
             type: String,
@@ -133,12 +28,29 @@ export default {
             showPreview: false
         }
     },
+    computed: {
+        /** What each choice actually does, said once here rather than in three panels. */
+        statusNote() {
+            if (!this.settings) {
+                return '';
+            }
+
+            if (this.settings.status === 'system') {
+                return this.$t('WordPress sends this email exactly as it does today. Nothing here changes it.');
+            }
+
+            if (this.settings.status === 'disabled') {
+                return this.$t('This email is not sent at all. Nobody is told when the event happens.');
+            }
+
+            return this.$t('Your subject and body below are sent instead of the WordPress default.');
+        }
+    },
     methods: {
         fetchEmail() {
             this.loading = true;
-            this.$get('wp-default-emails/find-email', {
-                email_id: this.email_id
-            })
+
+            this.$get('wp-default-emails/find-email', {email_id: this.email_id})
                 .then(response => {
                     this.smartcodes = response.smartcodes;
                     this.email = response.email;
@@ -153,8 +65,13 @@ export default {
                 });
         },
         saveEmail() {
+            if (!this.settings) {
+                return;
+            }
+
             this.required_smartcodes = [];
             this.saving = true;
+
             this.$post('wp-default-emails/save-email-settings', {
                 settings: this.settings,
                 email_id: this.email_id
@@ -165,7 +82,7 @@ export default {
                 .catch((errors) => {
                     this.$handleError(errors);
 
-                    if(errors?.data?.required_smartcodes) {
+                    if (errors?.data?.required_smartcodes) {
                         this.required_smartcodes = errors?.data?.required_smartcodes;
                     }
                 })
@@ -177,6 +94,7 @@ export default {
             this.disableEditor = true;
             this.settings.email.subject = this.default_content.email.subject;
             this.settings.email.body = this.default_content.email.body;
+
             this.$nextTick(() => {
                 this.disableEditor = false;
                 this.$notify.success(this.$t('Default content has been set successfully.'));
@@ -188,6 +106,95 @@ export default {
     },
     mounted() {
         this.fetchEmail();
-    },
+    }
 }
 </script>
+
+<template>
+    <div>
+        <SettingsHeader :heading="email ? email.title : $t('Edit Email')"
+                        :description="email ? email.description : ''"
+                        :saving="saving" :disabled="!settings" @save="saveEmail()">
+            <template #actions>
+                <el-button size="small" @click="$router.push({name: 'settings_emails'})">
+                    {{ $t('Back to emails') }}
+                </el-button>
+            </template>
+        </SettingsHeader>
+
+        <div class="fls_settings_content" v-loading="loading">
+            <el-skeleton v-if="!email || !settings" :animated="true" :rows="6"/>
+
+            <el-form v-else label-position="top">
+                <SettingsCard :title="$t('This email')">
+                    <template #actions>
+                        <el-tag type="info" disable-transitions>
+                            {{ $t('To: %s', email.recipient) }}
+                        </el-tag>
+                    </template>
+
+                    <SettingRow :label="$t('What to send')" :description="statusNote">
+                        <el-radio-group v-model="settings.status">
+                            <el-radio-button value="active" :label="$t('Your own')"/>
+                            <el-radio-button value="system" :label="$t('WordPress default')"/>
+                            <el-radio-button v-if="email.can_disable == 'yes'" value="disabled"
+                                             :label="$t('Nothing')"/>
+                        </el-radio-group>
+                    </SettingRow>
+                </SettingsCard>
+
+                <SettingsCard v-if="settings.status == 'active'" :title="$t('Content')"
+                              :description="$t('The placeholders in braces are filled in when the email is sent.')">
+                    <template #actions>
+                        <el-button v-if="default_content?.email?.body" size="small" @click="setDefaultContent()">
+                            {{ $t('Start from the default') }}
+                        </el-button>
+                        <el-button v-if="default_content?.email?.body" size="small" @click="previewEmail()">
+                            {{ $t('Preview') }}
+                        </el-button>
+                    </template>
+
+                    <SettingRow stacked :label="$t('Subject')">
+                        <input-popover input_size="large" :input_placeholder="$t('Your Email Subject')"
+                                       v-model="settings.email.subject" :data="smartcodes"/>
+                    </SettingRow>
+
+                    <SettingRow stacked :label="$t('Body')">
+                        <WpEditor v-if="!disableEditor" :editorShortcodes="smartcodes"
+                                  v-model="settings.email.body"/>
+                    </SettingRow>
+                </SettingsCard>
+
+                <el-alert v-if="settings.status == 'active' && required_smartcodes && required_smartcodes.length"
+                          type="error" :closable="false" show-icon
+                          :title="$t('This email needs these placeholders to work')">
+                    <ul class="fls_required_codes">
+                        <li v-for="(code, index) in required_smartcodes" :key="index">
+                            <span v-html="'{{' + code + '}}'"></span>
+                            {{ $t('or') }}
+                            <span v-html="'##' + code + '##'"></span>
+                        </li>
+                    </ul>
+                </el-alert>
+            </el-form>
+        </div>
+
+        <el-dialog v-model="showPreview" :title="$t('Previewing Email')" :width="800"
+                   :close-on-click-modal="true" :close-on-press-escape="true"
+                   :before-close="() => { showPreview = false; }">
+            <PreviewEmail v-if="showPreview" :email_id="email_id"
+                          :email_data="{subject: settings?.email?.subject, body: settings?.email?.body}"/>
+            <template #footer>
+                <el-button type="primary" @click="showPreview = false">{{ $t('Close') }}</el-button>
+            </template>
+        </el-dialog>
+    </div>
+</template>
+
+<style lang="scss">
+.fls_required_codes {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+}
+</style>

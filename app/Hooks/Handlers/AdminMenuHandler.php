@@ -7,9 +7,55 @@ use FluentAuth\App\Services\TransStrings;
 
 class AdminMenuHandler
 {
+    /**
+     * The class that puts the admin app into its dark theme.
+     *
+     * FluentCart's, deliberately - see printThemeClass().
+     */
+    const DARK_CLASS = 'fluent_theme_dark';
+
     public function register()
     {
         add_action('admin_menu', array($this, 'addMenu'));
+        add_action('admin_head', array($this, 'printThemeClass'));
+    }
+
+    /**
+     * Applies the chosen theme to <html> before the page paints.
+     *
+     * The app itself could do this once Vue has booted, but by then the screen has already
+     * been drawn light and the switch reads as a flash. This runs synchronously in <head>,
+     * so the first frame is the right one.
+     *
+     * The storage key, the class name and the `system:<resolved>` form of the stored value
+     * are all FluentCart's rather than this plugin's. Both plugins sit in the same admin
+     * menu, and a person who has chosen dark in one has chosen it for both - sharing the
+     * key is what makes that true without either plugin knowing about the other.
+     */
+    public function printThemeClass()
+    {
+        if (!isset($_GET['page']) || $_GET['page'] !== 'fluent-auth') {
+            return;
+        }
+
+        ?>
+        <script>
+            (function () {
+                var key = 'fluent_theme_mode',
+                    stored = localStorage.getItem(key) || localStorage.getItem('fcart_admin_theme'),
+                    mode = stored === 'dark' ? 'dark' : (stored === 'light' ? 'light' : 'system'),
+                    dark = stored === 'dark' || stored === 'system:dark' ||
+                        ((!stored || stored === 'system') && window.matchMedia &&
+                            window.matchMedia('(prefers-color-scheme: dark)').matches);
+
+                document.documentElement.setAttribute('data-fct-theme', mode);
+
+                if (dark) {
+                    document.documentElement.classList.add('<?php echo esc_js(self::DARK_CLASS); ?>');
+                }
+            })();
+        </script>
+        <?php
     }
 
     public function addMenu()
@@ -143,11 +189,23 @@ class AdminMenuHandler
                 'success' => __('Successful', 'fluent-security')
             ],
             'auth_settings'   => Helper::getAuthSettings(),
+            // What "apply recommended" writes, and what the dashboard checklist scores against.
+            'recommended_settings' => Helper::getRecommendedSettings(),
             'asset_url'       => FLUENT_AUTH_PLUGIN_URL . 'dist/',
+            /*
+             * Where a member sets up an authenticator app without going into wp-admin.
+             * Printed rather than described, because the whole point of it is being an
+             * address you can put in a welcome email or a member menu.
+             */
+            'totp_setup_url'  => TotpSetupPageHandler::getUrl(),
+            // Used as the example in the redirect URL fields, so the example is real.
+            'site_url'        => site_url('/'),
             'me'              => [
                 'id'        => $currentUser->ID,
                 'full_name' => $fullName,
-                'email'     => $currentUser->user_email
+                'email'     => $currentUser->user_email,
+                // The dashboard greets whoever is reading it, so it needs their face.
+                'avatar'    => get_avatar_url($currentUser->ID, ['size' => 96])
             ],
             'is_onboarding'   => true,
             'i18n'            => TransStrings::getStrings(),

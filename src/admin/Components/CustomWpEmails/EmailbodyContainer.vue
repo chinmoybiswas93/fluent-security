@@ -1,74 +1,113 @@
-<template>
-    <div>
-        <iframe
-            ref="ifr"
-            frameborder="0"
-            allowFullScreen
-            mozallowfullscreen
-            webkitallowfullscreen
-            style="width:100%;height: 600px;"
-        ></iframe>
-    </div>
-</template>
-
 <script>
+/**
+ * Renders the sample email in an iframe so its styles cannot touch the admin page.
+ *
+ * Both the content and the colours are painted by one method rather than a watcher
+ * each. They used to fight: setting the content replaced the whole body, which threw
+ * away the footer text the colour watcher had just written into it, and whichever ran
+ * last won. Painting in one pass makes the order explicit.
+ */
 export default {
     name: 'EmailbodyContainer',
     props: ['content', 'style_config'],
-    data() {
-        return {
-            // ...
-        };
+    created() {
+        // Held outside data() on purpose: a DOM node has no business being reactive.
+        this.styleNode = null;
     },
     methods: {
-        setBody(body) {
-            if (!body) {
-                body = ' ';
+        /** The iframe's document, once it exists. */
+        doc() {
+            const frame = this.$refs.ifr;
+
+            if (!frame) {
+                return null;
             }
 
-            this.$nextTick(() => {
-                const ifr = this.$refs.ifr;
-                const doc = ifr.contentDocument || ifr.contentWindow.document;
-                doc.body.innerHTML = body;
-            });
+            return frame.contentDocument || frame.contentWindow.document;
         },
+        paint() {
+            const doc = this.doc();
+
+            if (!doc) {
+                return;
+            }
+
+            doc.body.innerHTML = this.content || ' ';
+
+            const config = this.style_config;
+
+            if (!config) {
+                return;
+            }
+
+            /*
+             * One stylesheet, rewritten in place. This used to append a fresh <style>
+             * on every change, which is once per frame while a colour picker is being
+             * dragged - the head filled up with hundreds of them.
+             */
+            if (!this.styleNode || !this.styleNode.isConnected) {
+                this.styleNode = doc.createElement('style');
+                this.styleNode.type = 'text/css';
+                doc.head.appendChild(this.styleNode);
+            }
+
+            this.styleNode.textContent = [
+                `body, .body_wrap { background-color: ${config.body_bg} !important; }`,
+                `body .footer_table { color: ${config.footer_content_color} !important; }`,
+                `body .content_wrap { background-color: ${config.content_bg} !important; color: ${config.content_color} !important; }`,
+                `blockquote { background-color: ${config.highlight_bg} !important; color: ${config.highlight_color} !important; }`,
+                `blockquote p { color: ${config.highlight_color} !important; }`
+            ].join('\n');
+
+            // Only present in the sample markup, so never assume it is there.
+            const footer = doc.querySelector('.footer_text');
+
+            if (footer) {
+                footer.innerHTML = config.footer_text || '';
+            }
+        },
+        schedulePaint() {
+            this.$nextTick(this.paint);
+        },
+        /**
+         * Brings the part of the email a setting affects into view.
+         *
+         * The sample is longer than the frame, and the quoted block sits near the end of
+         * it - so changing that colour used to show nothing at all until you thought to
+         * scroll the preview.
+         */
+        reveal(selector) {
+            const doc = this.doc();
+
+            if (!doc || !selector) {
+                return;
+            }
+
+            const target = doc.querySelector(selector);
+
+            if (target) {
+                target.scrollIntoView({behavior: 'smooth', block: 'center'});
+            }
+        }
     },
     watch: {
         content: {
             immediate: true,
-            handler: 'setBody'
+            handler: 'schedulePaint'
         },
         style_config: {
             deep: true,
-            handler() {
-                if(!this.style_config) {
-                    return;
-                }
-                const ifr = this.$refs.ifr;
-                if(!ifr) {
-                    return;
-                }
-
-                // let's generate the styles
-                let css = '';
-                css += `body, .body_wrap { background-color: ${this.style_config.body_bg} !important; }`;
-                css += `body .footer_table { color: ${this.style_config.footer_content_color} !important; }`;
-                css += `body .content_wrap { background-color: ${this.style_config.content_bg} !important; color: ${this.style_config.content_color} !important; }`;
-                css += `blockquote { background-color: ${this.style_config.highlight_bg} !important; color: ${this.style_config.highlight_color} !important;}`;
-                css += `blockquote p { color: ${this.style_config.highlight_color} !important;}`;
-
-                // let's add the styles to the iframe
-                const doc = ifr.contentDocument || ifr.contentWindow.document;
-                const style = doc.createElement('style');
-                style.type = 'text/css';
-                style.appendChild(doc.createTextNode(css));
-                doc.head.appendChild(style);
-
-                // replace the text with class name: footer_text
-                doc.querySelector('.footer_text').innerHTML = this.style_config.footer_text;
-
-            }
+            handler: 'schedulePaint'
         }
+    },
+    mounted() {
+        this.paint();
     }
 };
 </script>
+
+<template>
+    <div class="fls_email_frame">
+        <iframe ref="ifr" frameborder="0" allowFullScreen mozallowfullscreen webkitallowfullscreen></iframe>
+    </div>
+</template>

@@ -122,6 +122,40 @@ class Api
         return $body;
     }
 
+    /*
+     * One file as wordpress.org published it, for the side-by-side diff.
+     *
+     * The directory serves every released version straight out of its Subversion repositories,
+     * which is the only place a single file can be had without pulling down a whole zip.
+     * Plugins keep releases under tags/; themes put the version at the top level.
+     */
+    public static function getExtensionFileContent($type, $slug, $version, $filePath)
+    {
+        if ($type === 'theme') {
+            $url = 'https://themes.svn.wordpress.org/' . $slug . '/' . $version . '/' . $filePath;
+        } else {
+            $url = 'https://plugins.svn.wordpress.org/' . $slug . '/tags/' . $version . '/' . $filePath;
+        }
+
+        $response = wp_remote_get($url, [
+            'timeout' => 20
+        ]);
+
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $responseCode = wp_remote_retrieve_response_code($response);
+
+        if ($responseCode !== 200) {
+            return new \WP_Error('invalid_response', __('The original file could not be fetched from WordPress.org.', 'fluent-security'), [
+                'status' => $responseCode
+            ]);
+        }
+
+        return wp_remote_retrieve_body($response);
+    }
+
     public static function disableApi()
     {
         $settings = IntegrityHelper::getSettings();

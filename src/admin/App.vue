@@ -1,67 +1,56 @@
-<template>
-    <div class="fframe_app">
-        <div class="fframe_main-menu-items">
-            <div class="menu_logo_holder">
-                <h3 style="margin: 10px 0; display: flex;align-items: center;"><img :src="appVars.asset_url + '/images/logo.png'" style="width: 150px; margin-top: -10px; margin-right: 7px;"/></h3>
-            </div>
-            <div class="fframe_handheld"><span class="dashicons dashicons-menu-alt3"></span></div>
-            <ul class="fframe_menu">
-                <li v-for="item in menuItems" :key="item.route" :class="'fframe_route_'+item.route"
-                    class="fframe_menu_item">
-                    <router-link :to="{ name: item.route }" class="fframe_menu_primary">
-                        {{ item.title }}
-                    </router-link>
-                </li>
-            </ul>
-        </div>
-
-        <div class="ff_app_body">
-            <router-view></router-view>
-        </div>
-    </div>
-</template>
-
 <script type="text/babel">
+import ThemeSwitch from './Bits/ThemeSwitch.vue';
+
 export default {
     name: 'FluentAuthApp',
+    components: {
+        ThemeSwitch
+    },
     data() {
         return {
+            scrolled: false,
+            navOpen: false,
+            /*
+             * Only destinations - places you go to look at something. Everything you go
+             * to change lives behind Settings, in one sidebar, so there is never a
+             * question of which of two menus a given option is under.
+             */
             menuItems: [
-                {
-                    route: 'dashboard',
-                    title: this.$t('Dashboard')
-                },
-                {
-                    route: 'logs',
-                    title: this.$t('Logs')
-                },
-                {
-                    route: 'settings',
-                    title: this.$t('Settings')
-                },
-                {
-                    route: 'auth_shortcodes',
-                    title: this.$t('Login/Signup Forms')
-                },
-                {
-                    route: 'login_redirects',
-                    title: this.$t('Login Redirects')
-                },
-                {
-                    route: 'custom_wp_emails',
-                    title: this.$t('System Emails')
-                },
-                {
-                    route: 'security_scans',
-                    title: this.$t('Security Scans')
-                }
+                {route: 'dashboard', title: this.$t('Dashboard')},
+                {route: 'logs', title: this.$t('Logs')},
+                {route: 'security_scans', title: this.$t('Security Scans')},
+                {route: 'settings_general', title: this.$t('Settings'), match: 'settings'}
             ]
         }
     },
+    methods: {
+        isActive(item) {
+            const active = this.$route.meta ? this.$route.meta.active : '';
+
+            return item.match ? active === item.match : active === item.route;
+        },
+        onScroll() {
+            this.scrolled = window.scrollY > 10;
+        },
+        /**
+         * Publishes the width of wp-admin's menu as a CSS variable.
+         *
+         * The app bar and the settings pane are pinned to the viewport, which means they
+         * cannot inherit the page's left offset the way an in-flow element does - they
+         * have to be told where the menu ends. Measuring it beats hard-coding 160px:
+         * collapsing the menu, the automatic fold on a narrow window and the off-canvas
+         * menu on a phone all land on different widths, and all of them show up here.
+         */
+        measureShell() {
+            const content = document.getElementById('wpcontent');
+            const left = content ? content.getBoundingClientRect().left : 0;
+
+            document.documentElement.style.setProperty('--fls-shell-left', left + 'px');
+        }
+    },
     watch: {
-        $route(to, from) {
-            jQuery('.fframe_menu_item').removeClass('router-current-active_li');
-            jQuery('.fframe_route_' + to.meta.active).addClass('router-current-active_li');
+        $route(to) {
+            this.navOpen = false;
             document.title = this.$t(to.meta.title) + ' | ' + this.$t('FluentAuth');
         }
     },
@@ -69,16 +58,67 @@ export default {
         jQuery('.update-nag,.notice, #wpbody-content > .updated, #wpbody-content > .error').remove();
     },
     mounted() {
-        if (this.appVars.has_server_mode) {
-            this.menuItems.push({
-                route: 'server_mode',
-                title: this.$t('Remote Auth')
-            });
-        }
+        window.addEventListener('scroll', this.onScroll);
+        this.onScroll();
 
-        jQuery('.fframe_handheld span').on('click', function () {
-            jQuery('ul.fframe_menu').toggle('show');
-        });
+        this.measureShell();
+
+        /*
+         * Folding the menu changes the width of #wpcontent, so watching its size catches
+         * the fold, the automatic fold at narrow widths and an ordinary window resize
+         * without listening for any of them by name.
+         */
+        const content = document.getElementById('wpcontent');
+
+        if (content && window.ResizeObserver) {
+            this.shellObserver = new ResizeObserver(this.measureShell);
+            this.shellObserver.observe(content);
+        } else {
+            window.addEventListener('resize', this.measureShell);
+        }
+    },
+    beforeUnmount() {
+        window.removeEventListener('scroll', this.onScroll);
+        window.removeEventListener('resize', this.measureShell);
+
+        if (this.shellObserver) {
+            this.shellObserver.disconnect();
+        }
     }
 }
 </script>
+
+<template>
+    <div class="fframe_app">
+        <div class="fls_app_bar" :class="{'is-scrolled': scrolled}">
+            <div class="fls_app_logo">
+                <router-link :to="{name: 'dashboard'}">
+                    <img :src="appVars.asset_url + '/images/logo.png'" alt="FluentAuth"/>
+                </router-link>
+            </div>
+
+            <button class="fls_app_bar_toggle" type="button" @click="navOpen = !navOpen"
+                    :aria-label="$t('Menu')">
+                <span class="dashicons dashicons-menu-alt3"></span>
+            </button>
+
+            <ul class="fls_app_nav" :class="{'is-open': navOpen}">
+                <li v-for="item in menuItems" :key="item.route">
+                    <router-link :to="{name: item.route}"
+                                 :class="{'router-link-active': isActive(item)}">
+                        {{ item.title }}
+                    </router-link>
+                </li>
+            </ul>
+
+            <div class="fls_app_bar_actions">
+                <slot name="actions"/>
+                <theme-switch/>
+            </div>
+        </div>
+
+        <div class="ff_app_body">
+            <router-view></router-view>
+        </div>
+    </div>
+</template>

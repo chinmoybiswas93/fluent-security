@@ -6,7 +6,7 @@ import {ElNotification, ElLoading, ElMessageBox} from 'element-plus'
 import Storage from '@/Bits/Storage';
 import App from './App.vue';
 
-import {FolderOpened, CloseBold, Document, ArrowLeftBold, MoreFilled, View, DocumentAdd, DocumentDelete, Warning, MuteNotification} from '@element-plus/icons-vue';
+import {CloseBold, ArrowLeftBold, View} from '@element-plus/icons-vue';
 
 require('./app.scss');
 
@@ -32,13 +32,6 @@ function convertToText(obj) {
 const app = createApp(App);
 app.use(ElLoading);
 
-app.component(FolderOpened.name, FolderOpened);
-app.component(Document.name, Document);
-app.component(DocumentAdd.name, DocumentAdd);
-app.component(DocumentDelete.name, DocumentDelete);
-app.component(Warning.name, Warning);
-app.component(MuteNotification.name, MuteNotification);
-app.component(MoreFilled.name, MoreFilled);
 app.component(View.name, View);
 app.component(CloseBold.name, CloseBold);
 app.component(ArrowLeftBold.name, ArrowLeftBold);

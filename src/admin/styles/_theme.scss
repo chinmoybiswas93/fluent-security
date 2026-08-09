@@ -1,0 +1,413 @@
+/*
+ * Light and dark, as one set of names.
+ *
+ * Every colour the app paints with is declared here twice - once light, once dark - and
+ * referred to by what it is for rather than by what it looks like. A stylesheet that says
+ * `background: var(--fls-surface)` is right in both themes; one that says `bg-white` is
+ * right in one of them, which is how a half-dark screen happens.
+ *
+ * The dark values are FluentCart's, read off its own dark stylesheet rather than picked to
+ * look similar: the two plugins sit in the same menu, and a user switching between them
+ * should not see two different dark greys. Its light values are already in the Tailwind
+ * palette (see styles/tokens/color.js), so those are quoted from there.
+ *
+ *
+ * Where the switch lives
+ * ----------------------
+ * `.fluent_theme_dark` is FluentCart's class and `fluent_theme_mode` is its localStorage
+ * key, both deliberately - one plugin's toggle moves the other's screen (see
+ * Bits/ThemeSwitch.vue). FluentCart's own script puts the class on <html> before paint and
+ * then moves it to <body>, so both are matched here.
+ *
+ * The scope is the body class WordPress puts on this plugin's screen. That is narrow
+ * enough that no other plugin's admin page changes colour, and wide enough to cover
+ * Element Plus's teleported popups - dropdowns, dialogs, notifications - which attach to
+ * <body> rather than to the app root.
+ */
+
+/*
+ * The light theme, as a mixin rather than a rule, because it is applied in two places: to
+ * the screen by default, and again inside the login page preview, which has to stay light
+ * whatever the admin around it is doing (see the note further down).
+ */
+@mixin light-tokens {
+    /* --------------------------------------------------------------- surfaces */
+
+    /* The page behind everything. FluentCart's --body-bg. */
+    --fls-body-bg: #F3F5FA;
+
+    /* A card, the app bar, the settings sidebar - anything that sits on the page. */
+    --fls-surface: #FFFFFF;
+
+    /* A well inside a surface: a table's header band, a code block, a hovered row. */
+    --fls-surface-sunk: #F9FAFB;
+
+    /* A selected thing on a surface: the active view tab, a progress track. */
+    --fls-surface-raised: #EAECF0;
+
+    /* ---------------------------------------------------------------- borders */
+
+    --fls-border: #EAECF0;
+    --fls-border-strong: #D6DAE1;
+
+    /* ------------------------------------------------------------------- text */
+
+    /* A page or greeting heading - the one thing on the screen darker than the rest. */
+    --fls-heading: #11171D;
+
+    /* Body text, card titles, table cells. */
+    --fls-text: #2F3448;
+
+    /* A label beside a value, a description under a setting. */
+    --fls-text-mid: #565865;
+
+    /* A timestamp, a count, a hint - present but not to be read first. */
+    --fls-text-light: #9D9FAC;
+
+    /* Something to click that is not a button. */
+    --fls-link: #253241;
+
+    /* --------------------------------------------------------------- emphasis */
+
+    /* The near-black FluentCart brand colour: focus rings, filled marks, bar fills. */
+    --fls-accent: #253241;
+    --fls-accent-contrast: #FFFFFF;
+
+    /* A tint of it, for the row a nav item is sitting on. */
+    --fls-accent-wash: #F0F0F1;
+
+    /* ---------------------------------------------------------------- shadows */
+
+    /*
+     * A card is lifted off the page by a shadow here and outlined by a hairline in dark,
+     * where a shadow cast onto a near-black page is not visible. The border is declared in
+     * both so the box model does not change with the theme.
+     */
+    --fls-card-line: transparent;
+    --fls-shadow-card: 0 1px 2px rgba(10, 13, 20, .03);
+    --fls-shadow-lift: 0 1px 8px rgba(16, 24, 40, .08);
+    --fls-shadow-pop: 0 4px 12px rgba(16, 24, 40, .1);
+
+    /* ---------------------------------------------------------------- statuses */
+
+    /*
+     * Four each: a wash for a band across the page, a fill for a chip or an icon well, a
+     * line for the band's border, and the text colour that goes on top of all three.
+     */
+    --fls-danger-wash: #FDF5F3;
+    --fls-danger-bg: #FCEBE6;
+    --fls-danger-line: #F8D6CE;
+    --fls-danger-fg: #B12A07;
+
+    --fls-warning-wash: #FFF9F3;
+    --fls-warning-bg: #FEF4E6;
+    --fls-warning-line: #FDE8CD;
+    --fls-warning-fg: #C47206;
+
+    --fls-success-wash: #F3FAF8;
+    --fls-success-bg: #E8F5F1;
+    --fls-success-line: #D1EAE4;
+    --fls-success-fg: #137A5F;
+
+    /* Nothing is wrong and nothing has happened - it should not draw the eye either way. */
+    --fls-neutral-bg: #EAECF0;
+    --fls-neutral-fg: #565865;
+
+    /* ------------------------------------------------------------- stat tiles */
+
+    /*
+     * One hue per status on the dashboard's four tiles, from FluentCart's tile ramp. It
+     * colours tiles by position, which is fine when the four are always the same four.
+     */
+    --fls-tile-success-bg: #EBF1FF;
+    --fls-tile-success-fg: #122368;
+
+    --fls-tile-failed-bg: #FFF3EB;
+    --fls-tile-failed-fg: #71330A;
+
+    --fls-tile-blocked-bg: #FFEBF4;
+    --fls-tile-blocked-fg: #68123D;
+
+    --fls-tile-two-fa-bg: #EFEBFF;
+    --fls-tile-two-fa-fg: #351A75;
+}
+
+body.toplevel_page_fluent-auth {
+    @include light-tokens;
+}
+
+/*
+ * Dark. Only the values change - every name above still means the same thing, which is why
+ * no stylesheet has to know which theme it is in.
+ */
+.fluent_theme_dark body.toplevel_page_fluent-auth,
+body.toplevel_page_fluent-auth.fluent_theme_dark {
+    --fls-body-bg: #11171D;
+    --fls-surface: #1C2732;
+    --fls-surface-sunk: #151D26;
+    --fls-surface-raised: #253241;
+
+    --fls-border: #2C3C4E;
+    --fls-border-strong: #2C3C4E;
+
+    --fls-heading: #F5F6F7;
+    --fls-text: #F5F6F7;
+    --fls-text-mid: #C1C7D1;
+    --fls-text-light: #8E99AA;
+    --fls-link: #C1C7D1;
+
+    /*
+     * The accent inverts rather than darkens. A near-black button on a near-black card is
+     * not a button, so on this theme the emphatic thing is the pale one - which is what
+     * FluentCart's own dark primary button does.
+     */
+    --fls-accent: #D9DADC;
+    --fls-accent-contrast: #2F3448;
+    --fls-accent-wash: #253241;
+
+    --fls-card-line: #2C3C4E;
+    --fls-shadow-card: none;
+    --fls-shadow-lift: 0 1px 8px rgba(0, 0, 0, .35);
+    --fls-shadow-pop: 0 4px 14px rgba(0, 0, 0, .45);
+
+    /*
+     * The status tints are the same hues at low alpha rather than the light theme's solid
+     * pastels: a pastel chip on a dark card glows, and it stops looking like a quiet label.
+     * The text is lifted to the light end of each ramp so it still reads on the tint.
+     */
+    --fls-danger-wash: #F0443814;
+    --fls-danger-bg: #F0443829;
+    --fls-danger-line: #F0443840;
+    --fls-danger-fg: #EB856B;
+
+    --fls-warning-wash: #F58E0714;
+    --fls-warning-bg: #F58E0729;
+    --fls-warning-line: #F58E0740;
+    --fls-warning-fg: #F9BB6A;
+
+    --fls-success-wash: #18987714;
+    --fls-success-bg: #18987729;
+    --fls-success-line: #18987740;
+    --fls-success-fg: #74C1AD;
+
+    --fls-neutral-bg: #253241;
+    --fls-neutral-fg: #C1C7D1;
+
+    --fls-tile-success-bg: #476CFF29;
+    --fls-tile-success-fg: #6895FF;
+
+    --fls-tile-failed-bg: #FA731929;
+    --fls-tile-failed-fg: #FFA468;
+
+    --fls-tile-blocked-bg: #FB4BA329;
+    --fls-tile-blocked-fg: #FF68B3;
+
+    --fls-tile-two-fa-bg: #784DEF29;
+    --fls-tile-two-fa-fg: #8C71F6;
+}
+
+/*
+ * Anything the app draws that nobody thought to colour.
+ *
+ * Without this those elements inherit wp-admin's own #3c434a, which is invisible on a dark
+ * card - a heading inside a panel is the usual way to find one. Set on the app root rather
+ * than on the elements themselves so it is inherited and loses to every rule that does have
+ * an opinion, including the ones that colour a heading red or amber on purpose.
+ */
+#fluent_auth_app {
+    color: var(--fls-text);
+}
+
+/* ------------------------------------------------------------- element plus */
+
+/*
+ * Element Plus is themed through its own variables rather than by restyling its
+ * components. They are declared on the same element as the tokens above so the popups it
+ * teleports to <body> inherit them too, and so a component this app never renders is still
+ * the right colour if it shows up later.
+ *
+ * The primary is set in both themes, not only in dark: the components are auto-imported by
+ * ElementPlusResolver, which injects their pre-built CSS into <head> at runtime - after
+ * this stylesheet - so a `:root` rule would lose on order no matter what it contained. The
+ * body class supplies the specificity to beat it without leaking into any other plugin.
+ */
+body.toplevel_page_fluent-auth {
+    --el-color-primary: var(--fls-accent);
+}
+
+.fluent_theme_dark body.toplevel_page_fluent-auth,
+body.toplevel_page_fluent-auth.fluent_theme_dark {
+    color-scheme: dark;
+
+    --el-bg-color: var(--fls-surface);
+    --el-bg-color-page: var(--fls-body-bg);
+    --el-bg-color-overlay: var(--fls-surface);
+
+    --el-text-color-primary: var(--fls-text);
+    --el-text-color-regular: var(--fls-text-mid);
+    --el-text-color-secondary: var(--fls-text-light);
+    --el-text-color-placeholder: #758195;
+    --el-text-color-disabled: #5A5F66;
+
+    --el-border-color: var(--fls-border);
+    --el-border-color-light: var(--fls-border);
+    --el-border-color-lighter: var(--fls-surface-raised);
+    --el-border-color-extra-light: var(--fls-surface-raised);
+    --el-border-color-dark: #3A4B60;
+    --el-border-color-hover: #3A4B60;
+
+    --el-fill-color: var(--fls-surface-raised);
+    --el-fill-color-light: var(--fls-surface-raised);
+    --el-fill-color-lighter: var(--fls-surface-sunk);
+    --el-fill-color-blank: var(--fls-surface);
+    --el-fill-color-dark: var(--fls-border);
+    --el-fill-color-darker: var(--fls-border);
+
+    --el-mask-color: rgba(17, 23, 29, .8);
+    --el-mask-color-extra-light: rgba(17, 23, 29, .3);
+
+    --el-disabled-bg-color: var(--fls-surface-raised);
+    --el-disabled-text-color: #758195;
+    --el-disabled-border-color: var(--fls-border);
+
+    --el-box-shadow-light: var(--fls-shadow-pop);
+    --el-box-shadow: var(--fls-shadow-pop);
+
+    /*
+     * Element Plus derives a light ramp from the primary and uses it for anything tinted
+     * with the brand colour - a selected option, a chosen tag. Left alone, that ramp is
+     * still the built-in pale blue, so those tints come out light on a dark card.
+     */
+    --el-color-primary-light-3: #3A4B60;
+    --el-color-primary-light-5: #33445A;
+    --el-color-primary-light-7: var(--fls-surface-raised);
+    --el-color-primary-light-8: var(--fls-surface-raised);
+    --el-color-primary-light-9: var(--fls-surface-raised);
+    --el-color-primary-dark-2: #E6E7E9;
+
+    /* The skeleton is a shimmer between two greys, and both of them were light ones. */
+    --el-skeleton-color: #1C2732;
+    --el-skeleton-to-color: #283643;
+}
+
+/*
+ * A few Element Plus pieces paint a colour rather than read one, so they are named here.
+ * Kept together so there is one place to look when a component comes out the wrong shade.
+ */
+.fluent_theme_dark body.toplevel_page_fluent-auth,
+body.toplevel_page_fluent-auth.fluent_theme_dark {
+    /* Inverted, like the accent: a near-black button on a near-black card is not a button. */
+    .el-button--primary {
+        --el-button-text-color: var(--fls-accent-contrast);
+        --el-button-hover-text-color: var(--fls-accent-contrast);
+        --el-button-active-text-color: var(--fls-accent-contrast);
+        --el-button-bg-color: var(--fls-accent);
+        --el-button-hover-bg-color: #C0C2C4;
+        --el-button-active-bg-color: #C0C2C4;
+        --el-button-border-color: var(--fls-accent);
+        --el-button-hover-border-color: #C0C2C4;
+        --el-button-active-border-color: #C0C2C4;
+    }
+
+    /* The chips inside a multi-select, which are tinted from the primary ramp. */
+    .el-tag {
+        --el-tag-bg-color: var(--fls-surface-raised);
+        --el-tag-border-color: var(--fls-border);
+        --el-tag-text-color: var(--fls-text-mid);
+        --el-tag-hover-color: var(--fls-text);
+    }
+
+    .el-table {
+        --el-table-bg-color: var(--fls-surface);
+        --el-table-tr-bg-color: var(--fls-surface);
+        --el-table-header-bg-color: var(--fls-surface-sunk);
+        --el-table-row-hover-bg-color: var(--fls-surface-sunk);
+        --el-table-border-color: var(--fls-border);
+        --el-table-text-color: var(--fls-text-mid);
+        --el-table-header-text-color: var(--fls-text);
+    }
+
+    /* Element Plus's alerts tint themselves from their own light ramp, which is opaque. */
+    .el-alert {
+        --el-alert-bg-color: var(--fls-surface-raised);
+
+        .el-alert__title,
+        .el-alert__description {
+            color: var(--fls-text);
+        }
+    }
+
+    /* wp-admin gives every input in its content area a white background of its own. */
+    input[type="text"],
+    input[type="search"],
+    input[type="email"],
+    input[type="url"],
+    input[type="number"],
+    input[type="password"],
+    textarea,
+    select {
+        background-color: var(--fls-surface-sunk);
+        border-color: var(--fls-border);
+        color: var(--fls-text);
+    }
+
+    /* --------------------------------------------------- the light island */
+
+    /*
+     * Where the dark theme stops.
+     *
+     * The login page designer's preview is not part of the app's chrome. It is a picture of
+     * what a visitor will see, and a visitor's browser is not running this plugin's dark
+     * theme - so the preview stays light while the editor around it goes dark, the way any
+     * page builder works.
+     *
+     * Re-declaring the tokens is most of it: they are inherited custom properties, so
+     * everything inside resolves against the light set again - including every rule above,
+     * which is why this sits inside the same block rather than after it. What has to be
+     * said outright is the part that is not expressed in tokens: Element Plus's own
+     * variables, which the preview's form controls are built from, and the colour scheme
+     * the browser draws a checkbox with.
+     */
+    .fcom_auth_wrap {
+        @include light-tokens;
+
+        color-scheme: light;
+        color: var(--fls-text);
+
+        --el-bg-color: #FFFFFF;
+        --el-bg-color-page: #F2F3F5;
+        --el-bg-color-overlay: #FFFFFF;
+
+        --el-text-color-primary: #303133;
+        --el-text-color-regular: #606266;
+        --el-text-color-secondary: #909399;
+        --el-text-color-placeholder: #A8ABB2;
+        --el-text-color-disabled: #C0C4CC;
+
+        --el-border-color: #DCDFE6;
+        --el-border-color-light: #E4E7ED;
+        --el-border-color-lighter: #EBEEF5;
+        --el-border-color-extra-light: #F2F6FC;
+        --el-border-color-dark: #D4D7DE;
+        --el-border-color-hover: #C0C4CC;
+
+        --el-fill-color: #F0F2F5;
+        --el-fill-color-light: #F5F7FA;
+        --el-fill-color-lighter: #FAFAFA;
+        --el-fill-color-blank: #FFFFFF;
+        --el-fill-color-dark: #EBEDF0;
+        --el-fill-color-darker: #E6E8EB;
+
+        --el-disabled-bg-color: #F5F7FA;
+        --el-disabled-text-color: #A8ABB2;
+        --el-disabled-border-color: #E4E7ED;
+
+        input,
+        textarea,
+        select {
+            background-color: #FFFFFF;
+            border-color: var(--el-border-color);
+            color: var(--fls-text);
+        }
+    }
+}

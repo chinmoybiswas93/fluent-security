@@ -30,6 +30,13 @@ mix.webpackConfig({
     }
 });
 
+mix.options({
+    postCss: [
+        require('tailwindcss'),
+        require('autoprefixer')
+    ]
+});
+
 mix
     .js('src/admin/app.js', 'dist/admin/app.js').vue({ version: 3 })
     .js('src/public/magic_url.js', 'dist/public/fls_login.js')
