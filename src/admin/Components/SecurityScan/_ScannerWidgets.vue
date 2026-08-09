@@ -266,6 +266,13 @@ export default {
                         <span class="fls_tag is_warning">{{ coverage.with_issues }}</span>
                     </span>
                 </li>
+                <!-- Its own line, above the coverage note: a finding, not a gap. -->
+                <li v-if="coverage.suspicious">
+                    <span class="fls_scan_fact_label">{{ $t('Unpublished versions') }}</span>
+                    <span class="fls_scan_fact_value">
+                        <span class="fls_tag is_blocked">{{ coverage.suspicious }}</span>
+                    </span>
+                </li>
             </ul>
 
             <p v-if="coverage.unverifiable" class="fls_note">

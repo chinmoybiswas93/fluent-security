@@ -119,6 +119,37 @@ export default {
 
             return inExtensions + coreFiles + coreFolders;
         },
+        /*
+         * Extensions on a version WordPress.org never published, and not marked as expected.
+         * Counted here as well as in the sections so the banner can lead with it.
+         */
+        suspiciousCount() {
+            const ignored = this.ignores.folders || [];
+
+            return [...this.plugins, ...this.themes].filter(item => {
+                if (!item.result || item.result.verifiable || item.result.severity !== 'suspicious') {
+                    return false;
+                }
+
+                return !ignored.includes('/' + String(item.rel_path || '').replace(/^\/+|\/+$/g, ''));
+            }).length;
+        },
+        /*
+         * Named after the worst thing found, not the most numerous. Thirty edited files in a
+         * plugin is a smaller claim than one plugin whose version was never released: the first
+         * could be a patch somebody applied, the second means nothing about it could be checked.
+         */
+        verdictTitle() {
+            if (this.suspiciousCount) {
+                return this.$_n(
+                    'A plugin or theme is not a version WordPress.org published',
+                    'Some plugins or themes are not versions WordPress.org published',
+                    this.suspiciousCount
+                );
+            }
+
+            return this.$t('Some files are not what WordPress.org published');
+        },
         /* Said once at the top, so the size of the problem is known before any of it is opened. */
         verdictSummary() {
             const changed = [...this.plugins, ...this.themes].filter(item =>
@@ -126,7 +157,15 @@ export default {
                 && (Object.keys(item.result.files || {}).length || item.result.truncated)
             ).length;
 
-            const parts = [this.$_n('%s file', '%s files', this.totalFindings)];
+            const parts = [];
+
+            if (this.suspiciousCount) {
+                parts.push(this.$_n('%s unpublished version', '%s unpublished versions', this.suspiciousCount));
+            }
+
+            if (this.totalFindings) {
+                parts.push(this.$_n('%s file', '%s files', this.totalFindings));
+            }
 
             if (changed) {
                 parts.push(this.$_n('in %s extension', 'in %s extensions', changed));
@@ -152,7 +191,7 @@ export default {
          :class="willAlert ? 'is_danger' : 'is_warning'">
         <span class="fls_scan_verdict_icon" v-html="willAlert ? icons.alert : icons.mute"></span>
         <div>
-            <h2 v-if="willAlert">{{ $t('Some files are not what WordPress.org published') }}</h2>
+            <h2 v-if="willAlert">{{ verdictTitle }}</h2>
             <h2 v-else>{{ $t('Only changes you have already accepted') }}</h2>
             <p v-if="willAlert">{{ $t('__file_change_detected__') }}</p>
             <p v-else>{{ $t('__scanner_result_dec_normal__') }}</p>
@@ -187,12 +226,14 @@ export default {
     <extension-section :title="$t('Plugins')"
                        :items="plugins"
                        :ignored-files="ignores.files"
+                       :ignored-folders="ignores.folders"
                        :checking-keys="pending"
                        :empty-text="$t('No plugins from the WordPress.org directory are installed.')"/>
 
     <extension-section :title="$t('Themes')"
                        :items="themes"
                        :ignored-files="ignores.files"
+                       :ignored-folders="ignores.folders"
                        :checking-keys="pending"
                        :empty-text="$t('No themes from the WordPress.org directory are installed.')"/>
 

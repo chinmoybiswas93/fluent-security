@@ -338,6 +338,138 @@ class ExtensionIntegrityTest extends BaseTestCase
             'A deleted plugin should stop being reported');
     }
 
+    /* --------------------------------------- an unpublished version is a finding */
+
+    /*
+     * "Could not verify" covers two unrelated situations and they must not be reported alike.
+     * A premium plugin never had an official copy; a directory plugin on a version the directory
+     * has never released had one and does not match it, which is what tampering looks like.
+     */
+    public function testOnlyExtensionsWithNoOfficialCopyCountAsBenign()
+    {
+        $this->assertEquals('benign', ExtensionInventory::getReasonSeverity('not_on_wp_org'));
+
+        $this->assertEquals('suspicious', ExtensionInventory::getReasonSeverity('version_not_published'));
+        $this->assertEquals('suspicious', ExtensionInventory::getReasonSeverity('no_manifest'));
+
+        /* The check itself failing says nothing about the extension. */
+        $this->assertEquals('unknown', ExtensionInventory::getReasonSeverity('download_failed'));
+        $this->assertEquals('unknown', ExtensionInventory::getReasonSeverity('unreadable'));
+        $this->assertEquals('unknown', ExtensionInventory::getReasonSeverity('no_version'));
+    }
+
+    public function testAnUnpublishedVersionIsReportedEvenThoughItHasNoChangedFiles()
+    {
+        IntegrityHelper::storeExtensionResult($this->unpublished());
+
+        $suspicious = IntegrityHelper::getSuspiciousExtensions();
+
+        $this->assertCount(1, $suspicious);
+        $this->assertEquals('Demo', $suspicious[0]['name']);
+        $this->assertEquals('/wp-content/plugins/demo', $suspicious[0]['path']);
+
+        /* No file list, and still an outstanding problem. */
+        $this->assertSame([], IntegrityHelper::getActiveExtensionFindings());
+        $this->assertTrue(IntegrityHelper::hasExtensionIssues());
+    }
+
+    public function testAPremiumExtensionIsNotReportedAsAFinding()
+    {
+        IntegrityHelper::storeExtensionResult(array_merge($this->result([]), [
+            'verifiable' => false,
+            'reason'     => 'not_on_wp_org'
+        ]));
+
+        $this->assertSame([], IntegrityHelper::getSuspiciousExtensions());
+        $this->assertFalse(IntegrityHelper::hasExtensionIssues(),
+            'Having paid plugins installed is not a finding');
+    }
+
+    public function testAFailedCheckIsNotReportedAsAFinding()
+    {
+        IntegrityHelper::storeExtensionResult(array_merge($this->result([]), [
+            'verifiable' => false,
+            'reason'     => 'download_failed'
+        ]));
+
+        $this->assertSame([], IntegrityHelper::getSuspiciousExtensions());
+        $this->assertFalse(IntegrityHelper::hasExtensionIssues());
+    }
+
+    /*
+     * A pre-release build installed on purpose is indistinguishable from a tampered one, so the
+     * row has to be dismissable - otherwise the site sits permanently red and the nightly email
+     * cries wolf. Accepted as a directory, under the ignore list everything else already uses.
+     */
+    public function testAnUnpublishedVersionCanBeMarkedAsExpected()
+    {
+        IntegrityHelper::storeExtensionResult($this->unpublished());
+
+        $this->assertTrue(IntegrityHelper::hasExtensionIssues());
+
+        IntegrityHelper::updateIgnoreLists([
+            'files'   => [],
+            'folders' => ['/wp-content/plugins/demo']
+        ]);
+
+        $this->assertSame([], IntegrityHelper::getSuspiciousExtensions());
+        $this->assertFalse(IntegrityHelper::hasExtensionIssues());
+        $this->assertEquals(0, IntegrityHelper::getExtensionSummary()['suspicious']);
+    }
+
+    /* Accepting an extension accepts its changed files too, not only its version. */
+    public function testMarkingAnExtensionExpectedAlsoAcceptsItsChangedFiles()
+    {
+        IntegrityHelper::storeExtensionResult($this->result([
+            'tampered.php' => ['status' => 'modified', 'modified_at' => '']
+        ]));
+
+        $this->assertCount(1, IntegrityHelper::getActiveExtensionFindings());
+
+        IntegrityHelper::updateIgnoreLists([
+            'files'   => [],
+            'folders' => ['/wp-content/plugins/demo']
+        ]);
+
+        $this->assertSame([], IntegrityHelper::getActiveExtensionFindings());
+    }
+
+    /*
+     * The site's stored verdict is written by the core check alone, which knows nothing about
+     * wp-content. Read back without this, the dashboard tile reports a healthy site over a scans
+     * screen listing changed plugins.
+     */
+    public function testTheStoredVerdictIsCorrectedByWhatIsKnownAboutExtensions()
+    {
+        $settings = IntegrityHelper::getSettings();
+        $settings['is_ok'] = 'yes';
+        IntegrityHelper::saveSettings($settings);
+
+        IntegrityHelper::storeExtensionResult($this->unpublished());
+
+        $this->assertTrue(IntegrityHelper::hasExtensionIssues());
+        $this->assertEquals('no', IntegrityHelper::getSettings()['is_ok'],
+            'Storing a finding should turn the stored verdict off');
+    }
+
+    public function testSummaryCountsUnpublishedVersionsApartFromMissingCoverage()
+    {
+        $this->fakeInventory([
+            $this->target('/tmp/a', ['key' => 'a/a.php', 'verifiable' => true, 'version' => '1.0.0']),
+            $this->target('/tmp/b', ['key' => 'b/b.php', 'verifiable' => false, 'reason' => 'not_on_wp_org'])
+        ]);
+
+        IntegrityHelper::storeExtensionResult(array_merge(
+            $this->result([], ['key' => 'a/a.php', 'version' => '1.0.0']),
+            ['verifiable' => false, 'reason' => 'version_not_published']
+        ));
+
+        $summary = IntegrityHelper::getExtensionSummary();
+
+        $this->assertEquals(2, $summary['unverifiable'], 'Neither could be checked');
+        $this->assertEquals(1, $summary['suspicious'], 'Only one of them is a finding');
+    }
+
     /* ------------------------------------------- the work list and the aside agree */
 
     /*
@@ -507,6 +639,15 @@ class ExtensionIntegrityTest extends BaseTestCase
             'verifiable'  => true,
             'reason'      => ''
         ], $overrides);
+    }
+
+    /* A result for an extension the directory publishes, at a version it does not. */
+    protected function unpublished($overrides = [])
+    {
+        return array_merge($this->result([], $overrides), [
+            'verifiable' => false,
+            'reason'     => 'version_not_published'
+        ]);
     }
 
     protected function result($files, $overrides = [])

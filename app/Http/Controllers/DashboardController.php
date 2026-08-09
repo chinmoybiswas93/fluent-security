@@ -454,7 +454,13 @@ class DashboardController
             'two_fa'    => $twoFa,
             'scan'      => [
                 'registered'   => in_array(Arr::get($scan, 'status'), ['active', 'self'], true),
-                'is_ok'        => Arr::get($scan, 'is_ok') !== 'no',
+                /*
+                 * The stored verdict covers core only - see IntegrityHelper::hasExtensionIssues.
+                 * Without the second half this tile reports a healthy site while the scans screen
+                 * lists changed plugins.
+                 */
+                'is_ok'        => Arr::get($scan, 'is_ok') !== 'no'
+                    && !IntegrityHelper::hasExtensionIssues(),
                 'last_checked' => self::timeAgo(Arr::get($scan, 'last_checked'), current_time('timestamp'))
             ],
             'retention' => (int)Arr::get($settings, 'auto_delete_logs_day', 0),

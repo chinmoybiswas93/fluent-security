@@ -1,6 +1,7 @@
 {
   "__scanner_result_dec_normal__": "All these file changes were previously marked as ignored. You can review them and decide whether to keep them on the ignore list.",
   "__scanner_desc__": "You can scan your site to detect unauthorized changes in your WordPress core files, plugins and themes. Everything is compared against the official release on WordPress.org, and anything that differs is listed for you to review.",
+  "__unpublished_version_desc__": "This extension comes from the WordPress.org directory, but version %s has never been published there — so there is no official copy of its files to compare against. If you did not install a beta or a patched build on purpose, treat this as a sign the files were replaced: check it against the vendor, then reinstall it from WordPress.org.",
   "__unverifiable_extensions_desc__": "These plugins and themes did not come from the WordPress.org directory, so there is no official copy of their files to compare against. Premium and custom extensions are normally in this list. Their files were not checked.",
   "__email_default_system_desc__": "This email will use the system default content. If you want to customize the email subject and body, please switch to Customized Content.",
   "__free_api_desc__": "Please fill in the form to get a free API key that enables Security Scan and automated notifications. This API key is used to send you emails from the FluentAuth Service. (You only need the free API key once.)",

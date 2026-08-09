@@ -327,8 +327,15 @@
         color: var(--fls-text);
     }
 
-    /* The verdict sits hard right, so a column of them can be read straight down. */
-    .fls_tag {
+    /*
+     * The verdict sits hard right, so a column of them can be read straight down. Wrapped
+     * rather than aligned per tag: a row can carry two ("No changes" plus "4 ignored"), and two
+     * auto margins would push them to opposite ends instead of keeping them together.
+     */
+    .fls_scan_summary_tags {
+        @apply flex flex-none items-center;
+
+        gap: 8px;
         margin-left: auto;
     }
 
@@ -361,6 +368,44 @@
         &:last-child {
             @apply border-b-0;
         }
+    }
+}
+
+/*
+ * A row for an extension whose version WordPress.org has never published.
+ *
+ * Given a red edge rather than a red fill: it sits in a list of ordinary rows and has to be
+ * findable at a glance while scrolling, but a filled row would shout down the file-level
+ * findings around it, which are not lesser problems - only different ones.
+ */
+.fls_scan_ext.is_alarming {
+    @apply bg-danger-wash;
+
+    box-shadow: inset 3px 0 0 0 var(--fls-danger-line);
+
+    .fls_scan_summary:hover {
+        @apply bg-danger-bg;
+    }
+}
+
+/* What an unpublished version means, in place of the file list it has no way to show. */
+.fls_scan_explain {
+    @apply flex flex-col items-start;
+
+    gap: 10px;
+    padding: 16px 20px 18px;
+
+    p {
+        @apply text-sm text-ink-mid;
+
+        margin: 0;
+        max-width: 72ch;
+    }
+
+    .fls_scan_explain_path {
+        @apply text-xs text-ink-light;
+
+        font-family: Menlo, Consolas, monospace;
     }
 }
 

@@ -19,6 +19,15 @@ class SecurityScanController
             $settings['last_checked_human'] = human_time_diff(strtotime($settings['last_checked']), current_time('timestamp'));
         }
 
+        /*
+         * The stored verdict is written by the core check, which knows nothing about wp-content.
+         * ORed with what is known about the extensions so this screen cannot report "no changes"
+         * with changed plugins listed below it.
+         */
+        if ($settings['is_ok'] !== 'no' && IntegrityHelper::hasExtensionIssues()) {
+            $settings['is_ok'] = 'no';
+        }
+
         return [
             'settings' => $settings,
             'ignores'  => IntegrityHelper::getIgnoreLists(),
@@ -26,7 +35,16 @@ class SecurityScanController
              * What the last scan made of wp-content. Unlike core's findings these are kept, so
              * arriving on the screen shows the standing picture instead of a blank slate.
              */
-            'extension_results' => array_values(IntegrityHelper::getExtensionResults()),
+            'extension_results' => array_values(array_map(function ($result) {
+                if (!empty($result['reason'])) {
+                    $result['reason_label'] = ExtensionInventory::getReasonLabel($result['reason']);
+                    $result['severity'] = ExtensionInventory::getReasonSeverity($result['reason']);
+                }
+
+                $result['ignored'] = IntegrityHelper::isExtensionIgnored(Arr::get($result, 'rel_path', ''));
+
+                return $result;
+            }, IntegrityHelper::getExtensionResults())),
             'extension_summary' => IntegrityHelper::getExtensionSummary()
         ];
     }
@@ -165,7 +183,13 @@ class SecurityScanController
                 'rel_path'   => $target['rel_path'],
                 'verifiable' => (bool)$target['verifiable'],
                 'reason'     => $target['reason'],
-                'reason_label' => $target['reason'] ? ExtensionInventory::getReasonLabel($target['reason']) : ''
+                'reason_label' => $target['reason'] ? ExtensionInventory::getReasonLabel($target['reason']) : '',
+                /*
+                 * Which kind of "could not verify" this is. Only the benign kind belongs in the
+                 * premium list; a version the directory does not publish stays with the plugins.
+                 */
+                'severity'   => $target['reason'] ? ExtensionInventory::getReasonSeverity($target['reason']) : '',
+                'ignored'    => IntegrityHelper::isExtensionIgnored($target['rel_path'])
             ];
 
             if ($target['type'] === 'theme') {
@@ -261,7 +285,10 @@ class SecurityScanController
 
         if (!empty($result['reason'])) {
             $result['reason_label'] = ExtensionInventory::getReasonLabel($result['reason']);
+            $result['severity'] = ExtensionInventory::getReasonSeverity($result['reason']);
         }
+
+        $result['ignored'] = IntegrityHelper::isExtensionIgnored($target['rel_path']);
 
         return [
             'result' => $result

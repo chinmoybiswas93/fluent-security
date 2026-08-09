@@ -69,11 +69,44 @@ export default {
         extraFolders() {
             return this.results && this.results.folders ? this.results.folders : [];
         },
-        fileCount() {
-            return this.fileGroups.reduce((total, group) => total + Object.keys(group.files).length, 0);
+        /*
+         * Findings split by whether the site has already accepted them.
+         *
+         * A change on the ignore list is a decision somebody made, not an outstanding problem, so
+         * it must not colour the verdict: a site whose only findings are accepted ones is clean,
+         * and saying otherwise trains people to ignore an amber row that never goes away. The
+         * count is still reported, because "clean" with nothing further said would hide the fact
+         * that the ignore list is doing the work.
+         */
+        counts() {
+            const ignoredFiles = this.ignores.files || [];
+            const ignoredFolders = this.ignores.folders || [];
+
+            let active = 0;
+            let accepted = 0;
+
+            this.fileGroups.forEach(group => {
+                Object.keys(group.files).forEach(file => {
+                    ignoredFiles.includes(group.rootPath + file) ? accepted++ : active++;
+                });
+            });
+
+            let activeFolders = 0;
+            let acceptedFolders = 0;
+
+            this.extraFolders.forEach(folder => {
+                ignoredFolders.includes(folder) ? acceptedFolders++ : activeFolders++;
+            });
+
+            return {
+                activeFiles: active,
+                activeFolders: activeFolders,
+                accepted: accepted + acceptedFolders,
+                total: active + accepted + activeFolders + acceptedFolders
+            };
         },
-        findingCount() {
-            return this.fileCount + this.extraFolders.length;
+        activeCount() {
+            return this.counts.activeFiles + this.counts.activeFolders;
         },
         /* pending -> checking -> clean | changed. Drives the tag and whether it opens. */
         state() {
@@ -85,7 +118,7 @@ export default {
                 return 'pending';
             }
 
-            return this.findingCount ? 'changed' : 'clean';
+            return this.activeCount ? 'changed' : 'clean';
         },
         statusLabel() {
             const labels = {
@@ -100,12 +133,12 @@ export default {
 
             const parts = [];
 
-            if (this.fileCount) {
-                parts.push(this.$_n('%s file', '%s files', this.fileCount));
+            if (this.counts.activeFiles) {
+                parts.push(this.$_n('%s file', '%s files', this.counts.activeFiles));
             }
 
-            if (this.extraFolders.length) {
-                parts.push(this.$_n('%s folder', '%s folders', this.extraFolders.length));
+            if (this.counts.activeFolders) {
+                parts.push(this.$_n('%s folder', '%s folders', this.counts.activeFolders));
             }
 
             return parts.join(' · ');
@@ -116,6 +149,10 @@ export default {
             }
 
             return this.state === 'changed' ? 'is_warning' : 'is_neutral';
+        },
+        /* Openable whenever there is anything listed, accepted findings included. */
+        canOpen() {
+            return this.counts.total > 0;
         }
     }
 }
@@ -127,18 +164,28 @@ export default {
             The whole head is the control when there is something to open, and a plain heading
             when there is not - a row that offers to expand into nothing is a small lie.
         -->
-        <component :is="state === 'changed' ? 'button' : 'div'"
-                   :type="state === 'changed' ? 'button' : null"
+        <component :is="canOpen ? 'button' : 'div'"
+                   :type="canOpen ? 'button' : null"
                    class="fls_scan_summary"
-                   :class="{is_open: open, is_static: state !== 'changed'}"
-                   @click="state === 'changed' && (open = !open)">
+                   :class="{is_open: open, is_static: !canOpen}"
+                   @click="canOpen && (open = !open)">
             <span class="fls_scan_summary_icon" v-html="icons.wordpress"></span>
 
             <span class="fls_scan_summary_name">{{ $t('WordPress Core') }}</span>
 
-            <span class="fls_tag" :class="statusTag">{{ statusLabel }}</span>
+            <span class="fls_scan_summary_tags">
+                <span class="fls_tag" :class="statusTag">{{ statusLabel }}</span>
 
-            <span v-if="state === 'changed'" class="fls_scan_chevron" v-html="icons.chevron"></span>
+                <!--
+                    Said even when the verdict is clean: it is the reason the verdict is clean,
+                    and without it the ignore list quietly does its work unmentioned.
+                -->
+                <span v-if="counts.accepted" class="fls_tag is_neutral">
+                    {{ $_n('%s ignored', '%s ignored', counts.accepted) }}
+                </span>
+            </span>
+
+            <span v-if="canOpen" class="fls_scan_chevron" v-html="icons.chevron"></span>
         </component>
 
         <div v-if="open" class="fls_scan_detail">

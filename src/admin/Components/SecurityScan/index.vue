@@ -104,20 +104,30 @@ export default {
             }));
         },
         pluginRows() {
-            return this.allTargets.filter(item => item.type === 'plugin' && !this.isUnverified(item));
+            return this.allTargets.filter(item => item.type === 'plugin' && !this.isPremium(item));
         },
         themeRows() {
-            return this.allTargets.filter(item => item.type === 'theme' && !this.isUnverified(item));
+            return this.allTargets.filter(item => item.type === 'theme' && !this.isPremium(item));
         },
         /*
-         * Either the inventory knew there was no official copy, or the attempt to fetch one
-         * established it. Both belong in the section that says what could not be checked.
+         * Only the extensions that never had an official copy to compare against.
+         *
+         * Deliberately not "everything we could not verify". An extension the directory does
+         * publish, at a version it does not, stays in the plugins or themes list where it will be
+         * read - see severityOf. Filing that under "premium & custom" would bury the single most
+         * telling sign of tampering the scan can produce among a dozen paid plugins.
          */
         unverified() {
-            return this.allTargets.filter(item => this.isUnverified(item)).map(item => ({
+            return this.allTargets.filter(item => this.isPremium(item)).map(item => ({
                 ...item,
                 reason_label: (item.result && item.result.reason_label) || item.reason_label
             }));
+        },
+        /* Extensions on a version WordPress.org has never published, and not marked expected. */
+        suspicious() {
+            return this.allTargets.filter(item =>
+                this.severityOf(item) === 'suspicious' && !this.isIgnored(item)
+            );
         }
     },
     methods: {
@@ -126,6 +136,27 @@ export default {
         },
         isUnverified(item) {
             return !item.verifiable || !!(item.result && !item.result.verifiable);
+        },
+        /* Whichever of the two knows more: the attempt, if one was made, else the inventory. */
+        severityOf(item) {
+            if (!this.isUnverified(item)) {
+                return '';
+            }
+
+            return (item.result && item.result.severity) || item.severity || 'unknown';
+        },
+        /* Nothing to compare against, ever - a paid or hand-written extension. */
+        isPremium(item) {
+            return this.severityOf(item) === 'benign';
+        },
+        /*
+         * Marked as expected. The ignore list holds it under `folders`, because what is accepted
+         * is the extension's directory rather than any one file in it.
+         */
+        isIgnored(item) {
+            const path = '/' + String(item.rel_path || '').replace(/^\/+|\/+$/g, '');
+
+            return (this.ignores.folders || []).includes(path);
         },
         getSettings() {
             this.loading = true;
@@ -295,8 +326,15 @@ export default {
                 }
             });
 
-            this.hasIssues = core.hasIssues || findings > 0;
-            this.willAlert = core.willAlert || unaccepted > 0;
+            /*
+             * An extension on a version WordPress.org never published produced no file list -
+             * there was no official copy to diff against - but it is a finding, and the loudest
+             * one available. Counted here or the screen would report a clean scan for it.
+             */
+            const suspicious = this.suspicious.length;
+
+            this.hasIssues = core.hasIssues || findings > 0 || suspicious > 0;
+            this.willAlert = core.willAlert || unaccepted > 0 || suspicious > 0;
             this.scanState = 'done';
 
             /* The aside reports the last scan, and this was one. */
@@ -306,7 +344,8 @@ export default {
                 total: this.allTargets.length,
                 verifiable: checked,
                 checked: checked,
-                unverifiable: this.unverified.length,
+                unverifiable: this.allTargets.filter(item => this.isUnverified(item)).length,
+                suspicious: suspicious,
                 with_issues: withIssues,
                 files: findings
             };

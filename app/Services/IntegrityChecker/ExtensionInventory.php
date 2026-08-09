@@ -252,12 +252,47 @@ class ExtensionInventory
         $labels = [
             'not_on_wp_org'         => __('Not from the WordPress.org directory', 'fluent-security'),
             'no_version'            => __('No version number to compare against', 'fluent-security'),
-            'version_not_published' => __('This version is not published on WordPress.org', 'fluent-security'),
-            'no_manifest'           => __('WordPress.org has no checksums for this version', 'fluent-security'),
+            'version_not_published' => __('Version not on WordPress.org', 'fluent-security'),
+            'no_manifest'           => __('No checksums published for this version', 'fluent-security'),
             'download_failed'       => __('The official copy could not be downloaded', 'fluent-security'),
             'unreadable'            => __('The files could not be read on this server', 'fluent-security')
         ];
 
         return isset($labels[$reason]) ? $labels[$reason] : __('Could not be verified', 'fluent-security');
+    }
+
+    /*
+     * How much a failure to verify should worry somebody.
+     *
+     * "Could not be checked" covers two completely different situations and they must not be
+     * reported alike:
+     *
+     *   benign     - the extension is not from the .org directory at all. There was never
+     *                anything to compare against. Nearly every site has some of these, and
+     *                nothing about it is a finding.
+     *
+     *   suspicious - the directory *does* publish this extension, but not the version sitting
+     *                on this site. Something replaced the files and left a version number the
+     *                directory has never released. That is what a backdoored copy carrying a
+     *                bumped version header looks like, so it is treated as a finding in its own
+     *                right rather than as a gap in coverage.
+     *
+     *   unknown    - the check itself did not complete: the network failed, the files could not
+     *                be read. Says nothing about the extension, and is worth retrying.
+     *
+     * A pre-release build installed on purpose looks identical to the suspicious case, which is
+     * why the row it produces can be marked as expected - see IntegrityHelper::isExtensionIgnored.
+     */
+    public static function getReasonSeverity($reason)
+    {
+        if ($reason === 'not_on_wp_org') {
+            return 'benign';
+        }
+
+        if (in_array($reason, ['version_not_published', 'no_manifest'], true)) {
+            return 'suspicious';
+        }
+
+        return 'unknown';
     }
 }
